@@ -35,6 +35,7 @@ career-search-status = "career_intelligence.tools.search_status_cli:main"
 career-read-strategy = "career_intelligence.tools.read_strategy:main"
 career-update-strategy = "career_intelligence.tools.update_strategy:main"
 career-analyze-roles = "career_intelligence.tools.analyze_roles_cli:main"
+career-prepare-research = "career_intelligence.tools.prepare_research_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

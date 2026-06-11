@@ -1,0 +1,38 @@
+{
+  "job_id": "job_4d36d8d6",
+  "run_id": "2026-06-10_055307",
+  "title": "Senior Software Engineer, Risk Engineering",
+  "company": "Flex",
+  "division_or_business_line": "",
+  "org_name_used": "Risk Platform team",
+  "org_name_source": "inferred_team_context_llm",
+  "generated_at": "2026-06-11T16:20:15.834357+00:00",
+  "search_queries": [
+    {
+      "query": "\"Flex\" \"Risk Platform team\"",
+      "purpose": "Understand what Risk Platform team covers within Flex",
+      "priority": "high",
+      "derived_from": "inferred_team_context_llm"
+    },
+    {
+      "query": "\"Flex\" \"risk management\" \"credit risk\" \"fraud risk\"",
+      "purpose": "Confirm Flex's scope in these domains",
+      "priority": "medium",
+      "derived_from": "finance_domains"
+    },
+    {
+      "query": "\"Flex\" \"software\" \"risk\" \"engineering\"",
+      "purpose": "Locate Flex team/role context for this position type",
+      "priority": "low",
+      "derived_from": "title_keywords"
+    }
+  ],
+  "context_gaps": [
+    "JD did not explicitly name a division or business line — research should identify the team's place in the org."
+  ],
+  "avoid_queries": [
+    "\"Flex\" company overview",
+    "\"Flex\" about us"
+  ],
+  "research_notes_target": "runs/2026-06-10_055307/research_notes/job_4d36d8d6.md"
+}

@@ -46,6 +46,7 @@ Output JSON with these fields:
   "likely_tasks": ["..."],
   "likely_stakeholders": ["..."],
   "inferred_team_context": "...",
+  "division_or_business_line": "If the JD explicitly names a specific division, business line, desk, group, or team within the company (e.g. 'Global Markets Risk', 'Risk Platform team', 'Group Governance', 'IBD', 'Fixed Income'), extract that name verbatim. Empty string if no such org name is explicitly stated in the JD.",
   "evidence_from_jd": {{
     "likely_tasks": "...",
     "likely_stakeholders": "...",
@@ -116,6 +117,8 @@ def _normalize_extraction(data: dict[str, Any]) -> dict[str, Any]:
         data["seniority_inferred"] = "unknown"
     if not isinstance(data.get("inferred_team_context"), str):
         data["inferred_team_context"] = ""
+    if not isinstance(data.get("division_or_business_line"), str):
+        data["division_or_business_line"] = ""
     return data
 
 
@@ -130,5 +133,6 @@ def _empty_extraction(reason: str = "") -> dict[str, Any]:
         "likely_tasks": [],
         "likely_stakeholders": [],
         "inferred_team_context": "",
+        "division_or_business_line": "",
         "evidence_from_jd": {"_extraction_error": reason},
     }

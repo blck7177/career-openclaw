@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# career_prepare_research — generate targeted research plans for role dossier analysis
+#
+# Usage:
+#   ./wrappers/career_prepare_research --run-id <run_id>
+#   ./wrappers/career_prepare_research --run-id <run_id> --dry-run
+#   ./wrappers/career_prepare_research --run-id <run_id> --limit 5
+#   ./wrappers/career_prepare_research --run-id <run_id> --job-ids job_abc123,job_def456
+#   ./wrappers/career_prepare_research --run-id <run_id> --force
+#
+# Prerequisites:
+#   1. career_run_discovery must have completed for the run (jobs_structured.json exists)
+#   2. .env must have OPENAI_API_KEY or ANTHROPIC_API_KEY (used for org name extraction)
+#
+# Outputs (written to runs/<run_id>/):
+#   role_research_plans/<job_id>.json   Per-job research plan with search queries + gaps
+#   role_research_tasks.jsonl           Flat task list for agent-driven web research
+#
+# Next step: agent reads role_research_tasks.jsonl, runs web_search / web_fetch,
+# writes research_notes/<job_id>.md, then runs career_analyze_roles.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORKSPACE_ROOT="$(dirname "$SCRIPT_DIR")"
+
+cd "$WORKSPACE_ROOT"
+
+if [[ ! -d ".venv" ]]; then
+  echo '{"error": "Python venv not found. Run: python -m venv .venv && pip install -e ."}' >&2
+  exit 1
+fi
+
+exec .venv/bin/python -m career_intelligence.tools.prepare_research_cli "$@"

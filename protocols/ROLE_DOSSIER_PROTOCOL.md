@@ -47,37 +47,58 @@ role_dossier   → "这个岗位到底需要什么人、在解决什么问题"�
 
 ### 带 pre-research（推荐，report 质量更高）
 
-先由 agent 做 web research，写 research notes，再触发分析：
+先由 `career_prepare_research` 生成 JD-guided 搜索计划，再由 agent 执行 web research，最后触发分析：
 
 ```bash
-# Step 1：agent 做 web research，写 research notes 文件
-# （见下方"Pre-Research 步骤"说明）
+# Step 1：生成 targeted research plan（基于 job_record 字段派生 search queries）
+./wrappers/career_prepare_research --run-id <run_id>
 
-# Step 2：检查哪些 job 有 research notes
+# Step 1a（可选）：先 dry-run 预览计划，不写文件
+./wrappers/career_prepare_research --run-id <run_id> --dry-run
+
+# Step 2：agent 读 role_research_tasks.jsonl，按 priority 做 web_search + web_fetch，
+#          写 research_notes/<job_id>.md（见下方"Pre-Research 步骤"）
+
+# Step 3：检查哪些 job 有 research notes
 ./wrappers/career_analyze_roles --run-id <run_id> \
   --research-notes-dir runs/<run_id>/research_notes \
   --dry-run
 
-# Step 3：运行分析
+# Step 4：运行分析
 ./wrappers/career_analyze_roles --run-id <run_id> \
   --research-notes-dir runs/<run_id>/research_notes
 ```
+
+`career_prepare_research` 跳过逻辑：已有 `research_notes/<job_id>.md` 的 job 自动跳过。加 `--force` 可强制重新生成计划。
 
 `--research-notes-dir` 指定一个目录，wrapper 会在其中查找 `<job_id>.md` 文件。有 notes 的 job 会用 `[+research]` 标记。没有 notes 的 job 照常运行（向下兼容）。
 
 ---
 
-## Pre-Research 步骤（可选，agent 执行）
+## Pre-Research 步骤（agent 执行）
 
-对每个需要分析的 job，agent 执行以下 web research 流程：
+`career_prepare_research` 会在 `runs/<run_id>/` 写入：
 
-**搜索目标（每个公司最多 3 次 web_search + web_fetch）：**
+```
+role_research_plans/<job_id>.json   每个 job 的详细搜索计划（queries + context_gaps）
+role_research_tasks.jsonl           所有 job 的搜索任务汇总（方便 agent 批量处理）
+```
 
-| 搜索目的 | 查询方向 |
-|---|---|
-| 公司基本情况 | `<company> company overview business model` |
-| 相关团队/部门 | `<company> <team_keyword from title/JD> team structure organization` |
-| 规模/市场定位 | `<company> funding revenue size industry` |
+`role_research_tasks.jsonl` 每行一条任务，包含：`job_id`、`company`、`query`、`purpose`、`priority`（high/medium/low）、`research_notes_target`。
+
+**搜索查询的派生逻辑（三层优先级）：**
+
+| 优先级 | Query 来源 | 示例 |
+|---|---|---|
+| high | `company` + `division_or_business_line`（JD 明确写出的 org 名称） | `"Flex" "Risk Platform team"` |
+| medium | `company` + `finance_domains` 中的前 3 个术语 | `"Flex" "credit risk" "fraud risk"` |
+| low | `company` + title 关键词（去噪声词） | `"Flex" "risk" "engineering"` |
+
+当 `division_or_business_line` 为空时，会用一次小 LLM call 从 `inferred_team_context` 中提取最有搜索价值的 org 名称，再生成 high priority query。
+
+**Agent 按计划执行 web research（每个公司最多 3 次 web_search + web_fetch）：**
+
+优先执行 high priority queries，其次 medium，low 作为 fallback。
 
 **写 research notes 文件：**
 
@@ -109,6 +130,7 @@ Source: <URL>
 - research notes 是辅助层，JD 仍是主要信息来源
 - 只写从 web_fetch 确认的内容，不要写"可能是"等推测性描述（推测性内容留给 Layer 1 LLM 处理）
 - 如果某家公司信息很少（刚融资的 startup、非知名公司），直接在 Research Gaps 里说明，不要强行填充
+- `role_research_plans/<job_id>.json` 中的 `context_gaps` 列出了这个 job 最需要 research 补充的问题，优先针对这些问题搜索
 
 ---
 

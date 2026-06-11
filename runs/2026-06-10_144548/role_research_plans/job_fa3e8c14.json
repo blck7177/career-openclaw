@@ -1,0 +1,38 @@
+{
+  "job_id": "job_fa3e8c14",
+  "run_id": "2026-06-10_144548",
+  "title": "Senior Quantitative Business Analyst – Risk & Performance",
+  "company": "Clearwater Analytics (CWAN)",
+  "division_or_business_line": "",
+  "org_name_used": "Risk & Performance team",
+  "org_name_source": "inferred_team_context_llm",
+  "generated_at": "2026-06-11T16:23:31.338335+00:00",
+  "search_queries": [
+    {
+      "query": "\"Clearwater Analytics (CWAN)\" \"Risk & Performance team\"",
+      "purpose": "Understand what Risk & Performance team covers within Clearwater Analytics (CWAN)",
+      "priority": "high",
+      "derived_from": "inferred_team_context_llm"
+    },
+    {
+      "query": "\"Clearwater Analytics (CWAN)\" \"risk analytics\" \"value-at-risk\" \"stress testing\"",
+      "purpose": "Confirm Clearwater Analytics (CWAN)'s scope in these domains",
+      "priority": "medium",
+      "derived_from": "finance_domains"
+    },
+    {
+      "query": "\"Clearwater Analytics (CWAN)\" \"quantitative\" \"business\" \"risk\"",
+      "purpose": "Locate Clearwater Analytics (CWAN) team/role context for this position type",
+      "priority": "low",
+      "derived_from": "title_keywords"
+    }
+  ],
+  "context_gaps": [
+    "JD did not explicitly name a division or business line — research should identify the team's place in the org."
+  ],
+  "avoid_queries": [
+    "\"Clearwater Analytics (CWAN)\" company overview",
+    "\"Clearwater Analytics (CWAN)\" about us"
+  ],
+  "research_notes_target": "runs/2026-06-10_144548/research_notes/job_fa3e8c14.md"
+}

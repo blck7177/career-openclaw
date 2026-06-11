@@ -58,6 +58,7 @@
     "likely_tasks": { "type": "array", "items": { "type": "string" } },
     "likely_stakeholders": { "type": "array", "items": { "type": "string" } },
     "inferred_team_context": { "type": "string" },
+    "division_or_business_line": { "type": "string" },
     "evidence_from_jd": { "type": "object" },
     "possible_duplicate": { "type": "boolean" },
     "validation_status": { "type": "string", "enum": ["passed", "failed"] },
