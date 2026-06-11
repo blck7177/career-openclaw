@@ -1,0 +1,48 @@
+# Environment
+.env
+*.env
+
+# OpenClaw agent runtime state
+.openclaw/
+
+# Accidental pip install artifacts
+=*
+
+# Database — schema and strategy are tracked, generated data is not
+db/jobs.jsonl
+db/jobs.sqlite
+db/job_index.json
+
+# Raw JD content (preserved in runs/, not committed)
+runs/*/raw_jds/
+
+# Run generated outputs — only run_config.yaml is tracked
+runs/*/run_log.jsonl
+runs/*/jobs_structured.json
+runs/*/candidate_pool.jsonl
+runs/*/search_ledger.jsonl
+runs/*/validation_errors.jsonl
+runs/*/skipped_results.jsonl
+runs/*/run_summary.json
+runs/*/run_summary.md
+runs/*/coverage_report.md
+
+# Agent work drafts and outputs (not committed)
+agent_work/drafts/
+agent_work/outputs/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+
+# IDE
+.DS_Store
+*.swp

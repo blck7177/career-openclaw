@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "career-openclaw"
+version = "0.1.0"
+description = "Career job intelligence workflow — OpenClaw agent backend"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27",
+    "jsonschema>=4.22",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",
+    "click>=8.1",
+]
+
+[project.optional-dependencies]
+anthropic = ["anthropic>=0.28"]
+openai = ["openai>=1.30"]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+]
+
+[project.scripts]
+career-run-discovery = "career_intelligence.tools.run_discovery:main"
+career-validate-run = "career_intelligence.tools.validate_run:main"
+career-query-jobs = "career_intelligence.tools.query_jobs:main"
+career-summarize-run = "career_intelligence.tools.summarize_run:main"
+career-search-session = "career_intelligence.tools.search_session_cli:main"
+career-log-candidates = "career_intelligence.tools.log_candidates_cli:main"
+career-search-status = "career_intelligence.tools.search_status_cli:main"
+career-read-strategy = "career_intelligence.tools.read_strategy:main"
+career-update-strategy = "career_intelligence.tools.update_strategy:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

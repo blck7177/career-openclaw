@@ -1,0 +1,29 @@
+[
+  {
+    "url": "https://job-boards.greenhouse.io/familyoffice/jobs/6582886003",
+    "title": "Market Risk Analyst",
+    "company": "Soros Fund Management",
+    "location": "New York, NY",
+    "relevance": "relevant",
+    "relevance_reason": "Direct market risk role: exposure monitoring, P&L, stress testing, scenario analysis across asset classes",
+    "workstream_hint": "Market Risk / Exposure Monitoring"
+  },
+  {
+    "url": "https://job-boards.greenhouse.io/schonfeld/jobs/7535613",
+    "title": "Enterprise Risk Associate, FX & Rates",
+    "company": "Schonfeld",
+    "location": "New York, NY",
+    "relevance": "relevant",
+    "relevance_reason": "Risk modeling and monitoring for FX & Rates, quant risk, VaR/Greeks, capital allocation",
+    "workstream_hint": "Market Risk / Exposure Monitoring"
+  },
+  {
+    "url": "https://job-boards.greenhouse.io/familyoffice/jobs/7722489003",
+    "title": "Pricing & Valuations Analyst",
+    "company": "Soros Fund Management",
+    "location": "New York, NY",
+    "relevance": "relevant",
+    "relevance_reason": "OTC derivatives pricing, P&L production, independent price testing, IPV/valuation control",
+    "workstream_hint": "Valuation Control / IPV"
+  }
+]

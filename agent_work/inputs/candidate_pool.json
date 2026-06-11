@@ -1,0 +1,26 @@
+[
+  {
+    "source_query": "site:greenhouse.io risk analytics new york",
+    "company": "Flex",
+    "title": "Senior Software Engineer, Fullstack (Risk Engineering)",
+    "url": "https://job-boards.greenhouse.io/flex/jobs/4689406005",
+    "location": "New York, NY; San Francisco, CA; USA",
+    "confidence": "relevant"
+  },
+  {
+    "source_query": "site:greenhouse.io risk analytics new york",
+    "company": "Flex",
+    "title": "Senior Software Engineer, Risk Engineering",
+    "url": "https://job-boards.greenhouse.io/flex/jobs/4668753005",
+    "location": "USA",
+    "confidence": "relevant"
+  },
+  {
+    "source_query": "site:greenhouse.io risk analytics new york",
+    "company": "Raisin",
+    "title": "(Senior) ICT Risk Manager (f/m/d)",
+    "url": "https://job-boards.eu.greenhouse.io/raisin/jobs/4863919101",
+    "location": "Berlin, Berlin, Germany",
+    "confidence": "maybe"
+  }
+]

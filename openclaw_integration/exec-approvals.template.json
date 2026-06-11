@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "defaults": {
+    "security": "allowlist",
+    "ask": "on-miss",
+    "askFallback": "deny"
+  },
+  "agents": {
+    "*": {
+      "allowlist": [
+        {
+          "id": "career_search_session",
+          "pattern": "career_search_session"
+        },
+        {
+          "id": "career_log_candidates",
+          "pattern": "career_log_candidates"
+        },
+        {
+          "id": "career_search_status",
+          "pattern": "career_search_status"
+        },
+        {
+          "id": "career_run_discovery",
+          "pattern": "career_run_discovery"
+        },
+        {
+          "id": "career_validate_run",
+          "pattern": "career_validate_run"
+        },
+        {
+          "id": "career_query_jobs",
+          "pattern": "career_query_jobs"
+        },
+        {
+          "id": "career_summarize_run",
+          "pattern": "career_summarize_run"
+        },
+        {
+          "id": "career_classify_source",
+          "pattern": "career_classify_source"
+        },
+        {
+          "id": "career_sync_board",
+          "pattern": "career_sync_board"
+        },
+        {
+          "id": "career_read_strategy",
+          "pattern": "career_read_strategy"
+        },
+        {
+          "id": "career_update_strategy",
+          "pattern": "career_update_strategy"
+        },
+        {
+          "id": "career_register_board",
+          "pattern": "career_register_board"
+        }
+      ]
+    }
+  },
+  "_notes": {
+    "usage": "Copy relevant entries to ~/.openclaw/exec-approvals.json",
+    "security": "allowlist mode means only the patterns above are auto-approved. All other exec calls trigger ask-on-miss (human approval required).",
+    "wrapper_paths": "Wrappers live in <workspace>/wrappers/. Either add to PATH or call with full path ./wrappers/<name>"
+  }
+}

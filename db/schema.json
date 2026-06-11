@@ -1,0 +1,17 @@
+{
+  "version": "1.0.0",
+  "description": "Career OpenClaw job intelligence database schema",
+  "files": {
+    "jobs.jsonl": {
+      "format": "jsonl",
+      "mode": "event-log",
+      "schema_ref": "../schemas/job_record.schema.json",
+      "note": "Append-only event log. job_index.json points to latest record per job_id."
+    },
+    "job_index.json": {
+      "format": "json",
+      "generated": true,
+      "note": "Maintained by storage_jsonl.py. Maps url_hash and job_id to latest line offset."
+    }
+  }
+}

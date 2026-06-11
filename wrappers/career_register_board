@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# career_register_board — add or update a company ATS board in company_boards.yaml
+#
+# This is the ONLY sanctioned way for the agent to write to company_boards.yaml.
+# Merge rules: existing fields not mentioned in the call are preserved.
+# verified_at is only advanced, never rolled back.
+#
+# Usage:
+#   ./wrappers/career_register_board --slug <slug> --source <source> --status <status> [options]
+#
+# Required:
+#   --slug          Company key in snake_case (e.g. jane_street)
+#   --source        ATS type: greenhouse | lever | ashby | workday | html
+#   --status        active | best_effort | hard_source | unknown
+#
+# Source-specific required:
+#   --board-token   Board token/slug for greenhouse, lever, ashby
+#   --tenant        Tenant name for workday
+#   --host          Hostname for workday (e.g. gs.wd5.myworkdayjobs.com)
+#   --board-url     Direct URL for html sources
+#
+# Optional:
+#   --verified-at   Date verified in YYYY-MM-DD (defaults to today)
+#   --notes         Notes about this board
+#   --output-format json|summary (default: summary)
+#
+# Examples:
+#   ./wrappers/career_register_board \
+#     --slug millennium \
+#     --source greenhouse \
+#     --board-token millenniummanagement \
+#     --status active \
+#     --verified-at 2026-06-10 \
+#     --notes "Verified via Greenhouse boards API, confirmed risk roles available"
+#
+#   ./wrappers/career_register_board \
+#     --slug jpmorgan \
+#     --source workday \
+#     --tenant jpmc \
+#     --host jpmc.wd5.myworkdayjobs.com \
+#     --status hard_source \
+#     --notes "Bot protection on detail pages; use search aggregator only"
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORKSPACE_ROOT="$(dirname "$SCRIPT_DIR")"
+
+cd "$WORKSPACE_ROOT"
+
+if [[ ! -d ".venv" ]]; then
+  echo '{"error": "Python venv not found. Run: python -m venv .venv && source .venv/bin/activate && pip install -e ."}' >&2
+  exit 1
+fi
+
+exec .venv/bin/python -m career_intelligence.tools.register_board_cli "$@"

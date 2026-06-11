@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# career_classify_source — classify a URL into its ATS source type
+#
+# Usage:
+#   ./wrappers/career_classify_source --url <url>
+#
+# Output: JSON with source_type, company_slug, job_external_id, confidence, route_to
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORKSPACE_ROOT="$(dirname "$SCRIPT_DIR")"
+
+cd "$WORKSPACE_ROOT"
+
+if [[ ! -d ".venv" ]]; then
+  echo '{"error": "Python venv not found. Run: python -m venv .venv && source .venv/bin/activate && pip install -e ."}' >&2
+  exit 1
+fi
+
+exec .venv/bin/python -m career_intelligence.tools.classify_source_cli "$@"
