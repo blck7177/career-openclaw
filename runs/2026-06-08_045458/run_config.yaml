@@ -1,0 +1,10 @@
+mode: exploratory
+profile_name: market_risk_nyc
+run_timestamp: '2026-06-08T04:54:58.693810+00:00'
+runner_version: 0.1.0
+search_budget:
+  max_fetched_pages: 40
+  max_queries: 30
+  stop_on_consecutive_empty: 3
+session_id: 2026-06-08_045458
+status: search_in_progress

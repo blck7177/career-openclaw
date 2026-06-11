@@ -1,0 +1,14 @@
+final_stats:
+  candidates_captured: 1
+  queries_run: 1
+mode: exploratory
+profile_name: market_risk_nyc
+run_timestamp: '2026-06-08T03:53:49.382558+00:00'
+runner_version: 0.1.0
+search_budget:
+  max_fetched_pages: 40
+  max_queries: 30
+  stop_on_consecutive_empty: 3
+search_completed_at: '2026-06-08T03:54:00.764939+00:00'
+session_id: 2026-06-08_035349
+status: search_complete

@@ -1,0 +1,204 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "role_dossier.schema.json",
+  "title": "RoleDossier",
+  "description": "Layer 2 structured role dossier — canonicalized from a Layer 1 narrative report. Describes what the role is, what problem it solves, and what underlying capabilities it requires.",
+  "type": "object",
+  "required": [
+    "job_id",
+    "run_id",
+    "analysis_version",
+    "analyzed_at",
+    "business_context",
+    "position_function",
+    "daily_workflow",
+    "underlying_skill_demands",
+    "primary_workstream",
+    "analyst_notes"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "job_id": {
+      "type": "string",
+      "pattern": "^job_[a-f0-9]{8}$",
+      "description": "Foreign key linking to the corresponding job_record in db/jobs.jsonl."
+    },
+    "run_id": {
+      "type": "string",
+      "description": "Run ID during which this dossier was generated."
+    },
+    "analysis_version": {
+      "type": "string",
+      "description": "Version of the role_analyzer module that produced this dossier."
+    },
+    "analyzed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when this dossier was generated."
+    },
+    "title": { "type": "string" },
+    "company": { "type": "string" },
+    "source_url": { "type": "string" },
+
+    "business_context": {
+      "type": "object",
+      "required": ["summary", "confidence"],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "description": "One to three sentence summary of the role's organizational purpose."
+        },
+        "problem_solved": {
+          "type": "string",
+          "description": "The specific business, operational, or technical problem this role helps solve."
+        },
+        "evidence": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Exact phrases or sentences from the JD or report supporting this context."
+        },
+        "confidence": {
+          "type": "string",
+          "enum": ["high", "medium", "low"]
+        }
+      }
+    },
+
+    "position_function": {
+      "type": "object",
+      "required": ["primary_function", "confidence"],
+      "properties": {
+        "primary_function": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Primary function label (e.g. Analytics, Risk / Compliance, Engineering, Mixed / Hybrid)."
+        },
+        "secondary_functions": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "function_mix_description": {
+          "type": "string",
+          "description": "Brief description of function breakdown for hybrid roles. Empty string if not hybrid."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why this function classification fits."
+        },
+        "evidence": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "confidence": {
+          "type": "string",
+          "enum": ["high", "medium", "low"]
+        }
+      }
+    },
+
+    "daily_workflow": {
+      "type": "object",
+      "properties": {
+        "likely_inputs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Data, documents, systems, processes, customers the role works with."
+        },
+        "likely_analyses": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Analysis, execution, coordination, or decisions the role performs."
+        },
+        "likely_outputs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Reports, decisions, code, models, documents, or recommendations the role produces."
+        },
+        "likely_stakeholders": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Who the role communicates with or works alongside."
+        },
+        "evidence": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+
+    "underlying_skill_demands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["jd_phrase", "underlying_capability", "importance"],
+        "properties": {
+          "jd_phrase": {
+            "type": "string",
+            "description": "Exact or closely summarized phrase from the JD."
+          },
+          "underlying_capability": {
+            "type": "string",
+            "description": "What this JD phrase actually requires the person to do in practice."
+          },
+          "importance": {
+            "type": "string",
+            "enum": ["core", "supporting", "nice_to_have"]
+          },
+          "evidence": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "confidence": {
+            "type": "string",
+            "enum": ["high", "medium", "low"]
+          }
+        }
+      },
+      "description": "Translation of JD keywords into real underlying capabilities (up to 8 most important)."
+    },
+
+    "primary_workstream": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Primary workstream label from configs/workstream_taxonomy.yaml, or 'unknown'."
+    },
+    "secondary_workstreams": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Secondary workstream labels from taxonomy."
+    },
+    "workstream_evidence": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Phrases from report or JD supporting the workstream classification."
+    },
+    "workstream_confidence": {
+      "type": "string",
+      "enum": ["high", "medium", "low"]
+    },
+
+    "uncertainty_notes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["issue", "impact"],
+        "properties": {
+          "issue": {
+            "type": "string",
+            "description": "What is unclear in the JD or report."
+          },
+          "impact": {
+            "type": "string",
+            "description": "Why this uncertainty matters for understanding the role."
+          }
+        }
+      }
+    },
+
+    "analyst_notes": {
+      "type": "string",
+      "description": "Concise analyst summary: what the role is really about, who would succeed, what makes it distinct."
+    }
+  }
+}

@@ -54,19 +54,16 @@ description: "Job search session operator. Use when running or continuing a sear
 **推断步骤（每次 board sync 前必做）：**
 
 1. 从 `configs/search_profiles.yaml` 读取当前 profile 的 `locations` 和 `keywords`
-2. 构造 `--location-filter`：join profile 的 locations，加入常见变体
-   - 例：`"New York, NY"` + `"Jersey City, NJ"` → `"New York,Jersey City,NYC,NY"`
-3. 构造 `--title-keywords`：从 profile 的 keywords 中提取 title-level 核心词
-   - 例：`"market risk analyst,valuation control,IPV"` → `"risk,analyst,associate,quant,valuation,exposure,credit"`
-4. 固定加入 `--exclude-titles "intern,software engineer,engineering,marketing,recruiter,hr,legal,compliance,operations"`
+2. 构造 `--location-filter`：join profile 的 locations，加入常见地名变体（缩写、别称）
+3. 构造 `--title-keywords`：从 profile 的 keywords 中提取 title-level 核心词（去掉过长的短语，保留单词）
+4. 如需排除不相关职位，通过 `--exclude-titles` 传入排除词——排除词由 profile 和搜索目标决定，不硬编码
 
 **先用 `--dry-run` 检查预期命中数：**
 ```bash
 ./wrappers/career_sync_board \
-  --source greenhouse --slug schonfeld \
-  --location-filter "New York,NYC,Jersey City" \
-  --title-keywords "risk,analyst,associate,quant,valuation,exposure" \
-  --exclude-titles "intern,engineer,marketing,recruiter,hr,legal" \
+  --source <ats_type> --slug <company_slug> \
+  --location-filter "<locations from profile>" \
+  --title-keywords "<keywords from profile>" \
   --dry-run
 ```
 - 如果 `would_keep = 0`：放宽 `--title-keywords`（去掉最严格的词），或去掉 `--location-filter`（先看全部职位分布）

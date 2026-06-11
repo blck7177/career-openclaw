@@ -1,0 +1,14 @@
+final_stats:
+  candidates_captured: 3
+  queries_run: 0
+mode: exploratory
+profile_name: risk_analytics_nyc
+run_timestamp: '2026-06-10T05:53:07.715628+00:00'
+runner_version: 0.1.0
+search_budget:
+  max_fetched_pages: 40
+  max_queries: 30
+  stop_on_consecutive_empty: 3
+search_completed_at: '2026-06-10T05:53:32.367175+00:00'
+session_id: 2026-06-10_055307
+status: search_complete

@@ -55,13 +55,13 @@ You may freely change query families, source strategy, company targets, terminol
 # Step 1：用 write tool 写 query JSON 文件
 write agent_work/drafts/query_01.json:
 {
-  "query_text": "site:careers.jpmorgan.com market risk NYC",
-  "search_intent": "find market risk roles at JPMorgan NYC",
+  "query_text": "<actual query text>",
+  "search_intent": "<describe search intent>",
   "query_type": "targeted_site_search",
-  "query_family": "market_risk",
+  "query_family": "<derived from profile keywords>",
   "source_type": "company_career_page",
   "results_seen": [
-    {"title": "Market Risk Analyst", "url": "https://careers.jpmorgan.com/...", "relevance": "relevant"}
+    {"title": "<job title>", "url": "<job posting url>", "relevance": "relevant"}
   ],
   "valid_url_count": 1,
   "candidate_yield": 1,
@@ -89,13 +89,13 @@ exec: ./wrappers/career_search_session log-query --session-id <id> --query-file 
 ```
 exec: ./wrappers/career_log_candidates \
   --session-id <id> \
-  --url "https://careers.jpmorgan.com/job/12345" \
-  --title "Market Risk Analyst" \
-  --company "JPMorgan" \
-  --location "New York, NY" \
+  --url "<job posting url>" \
+  --title "<job title>" \
+  --company "<company name>" \
+  --location "<location>" \
   --relevance relevant \
-  --reason "explicit market risk + NYC" \
-  --workstream-hint "Market Risk / Exposure Monitoring"
+  --reason "<reason this posting matches the profile>" \
+  --workstream-hint "<workstream from taxonomy>"
 ```
 
 批量调用（先 write tool 写文件，再 exec）：
@@ -104,13 +104,13 @@ exec: ./wrappers/career_log_candidates \
 write agent_work/drafts/candidates_batch.json:
 [
   {
-    "url": "https://careers.jpmorgan.com/job/12345",
-    "title": "Market Risk Analyst",
-    "company": "JPMorgan",
-    "location": "New York, NY",
+    "url": "<job posting url>",
+    "title": "<job title>",
+    "company": "<company name>",
+    "location": "<location>",
     "relevance": "relevant",
-    "relevance_reason": "explicit market risk + NYC",
-    "workstream_hint": "Market Risk / Exposure Monitoring"
+    "relevance_reason": "<reason this posting matches the profile>",
+    "workstream_hint": "<workstream from taxonomy>"
   }
 ]
 
@@ -204,9 +204,9 @@ Session: <session_id>
 
 - **board_sync**（优先）: 对 Greenhouse / Lever / Ashby 公司直接调用 `career_sync_board`，一次性获取全部 published jobs。比 HTML fetch 稳定，无 bot 保护问题。先查 `configs/company_boards.yaml` 确认 board profile，再执行：
   ```
-  exec: ./wrappers/career_sync_board --source greenhouse --slug schonfeld --session-id <id>
+  exec: ./wrappers/career_sync_board --source <ats_type> --slug <company_slug> --session-id <id>
   ```
-- **targeted_site_search**: `site:careers.jpmorgan.com valuation control NYC`（适合不在 boards 里的公司）
+- **targeted_site_search**: `site:<company_career_page> <keyword> <location>`（适合不在 boards 里的公司）
 - **broad_keyword_search**: 通用关键词 + location + seniority
 - **company_career_page_snowball**: web_fetch 公司 career page，从页面上找相关岗位列表
 - **query_expansion**: 从 JD 内容里发现新术语，生成新 query
@@ -235,24 +235,6 @@ Session: <session_id>
 
 ---
 
-## Company Seed List（可选参考，不是硬约束）
-
-主要 bank career pages：
-- JPMorgan: careers.jpmorgan.com
-- Goldman Sachs: goldmansachs.com/careers
-- Morgan Stanley: morganstanley.com/people-opportunities
-- Citi: jobs.citi.com
-- Bank of America: careers.bankofamerica.com
-- Barclays: search.jobs.barclays
-- Deutsche Bank: db.com/careers
-- UBS: ubs.com/careers
-- BNP Paribas: bnpparibas.com/careers
-- Wells Fargo: wellsfargojobs.com
-
-这只是 seed，不是全集。基于搜索结果动态决定覆盖范围。
-
----
-
 ## Coverage Report Template（session 结束前必须按此格式写）
 
 把这个模板写入 `agent_work/drafts/coverage_report.md`，然后调用 `career_search_session end`。
@@ -271,7 +253,7 @@ Session: <session_id>
 （哪些 query / source 产出了真实 JD candidates？）
 
 ## What Failed
-（哪些方向无结果？具体 failure mode 是什么？例：JPM/GS career pages → blocked_403）
+（哪些方向无结果？具体 failure mode 是什么？blocked_403 / no_results / fake_urls / search_result_pages_only）
 
 ## Coverage Gaps
 （还缺哪些 workstream / company group 没有足够候选？）

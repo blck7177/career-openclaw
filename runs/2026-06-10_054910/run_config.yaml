@@ -1,0 +1,10 @@
+mode: exploratory
+profile_name: risk_analytics
+run_timestamp: '2026-06-10T05:49:10.583625+00:00'
+runner_version: 0.1.0
+search_budget:
+  max_fetched_pages: 40
+  max_queries: 30
+  stop_on_consecutive_empty: 3
+session_id: 2026-06-10_054910
+status: search_in_progress

@@ -50,16 +50,15 @@ cat runs/<session_id>/run_log.jsonl
 
 ```json
 {
-  "effective_sources": ["成功 fetch 的 source，例如：greenhouse.io 直链"],
-  "avoid_sources": ["403/404 的 source，例如：swissre.com — HTTP 403"],
+  "effective_sources": ["成功 fetch 的 source 描述，含 source 类型或域名"],
+  "avoid_sources": ["<domain> — <failure_reason: 403 / 404 / bot-blocked / login-required>"],
   "effective_query_patterns": ["产出真实 JD URL 的 query 模式"],
   "avoid_query_patterns": ["只返回搜索结果页的 query 模式"],
   "coverage_by_workstream": {
-    "Market Risk / Exposure Monitoring": "sufficient",
-    "Structured Credit / Credit Analytics": "missing"
+    "<workstream_label from taxonomy>": "sufficient | weak | missing"
   },
   "key_learnings": ["本轮新发现"],
-  "recommended_next_searches": ["下一轮优先方向"]
+  "recommended_next_searches": ["下一轮优先方向，对应 missing workstream"]
 }
 ```
 
