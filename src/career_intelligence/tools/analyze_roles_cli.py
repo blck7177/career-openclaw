@@ -6,6 +6,12 @@ Prerequisites:
   - career_run_discovery must have completed for the run (jobs_structured.json + raw_jds/ exist)
   - OPENAI_API_KEY or ANTHROPIC_API_KEY must be set in .env
 
+Optional pre-research:
+  If --research-notes-dir is provided, the CLI looks for a markdown file named
+  <job_id>.md inside that directory for each job being analyzed. When found,
+  the file contents are passed to Layer 1 as company/team research context.
+  The agent writes these files before calling the wrapper (Option A pattern).
+
 Outputs (written to runs/<run_id>/):
   - role_dossier_reports/<job_id>.md   Layer 1 narrative report per job
   - role_dossiers.jsonl                Layer 2 structured dossiers (append mode)
@@ -30,7 +36,23 @@ ANALYSIS_VERSION = "0.1.0"
 @click.option("--limit", default=None, type=int, help="Max number of jobs to analyze.")
 @click.option("--job-ids", default=None, help="Comma-separated job IDs to analyze (overrides --limit).")
 @click.option("--dry-run", is_flag=True, default=False, help="List eligible jobs without running analysis.")
-def main(run_id: str, limit: int | None, job_ids: str | None, dry_run: bool) -> None:
+@click.option(
+    "--research-notes-dir",
+    default=None,
+    help=(
+        "Directory containing pre-research markdown files named <job_id>.md. "
+        "When a matching file is found for a job, its content is included in the "
+        "Layer 1 prompt as company/team research context. "
+        "Tip: use runs/<run_id>/research_notes/ as the convention."
+    ),
+)
+def main(
+    run_id: str,
+    limit: int | None,
+    job_ids: str | None,
+    dry_run: bool,
+    research_notes_dir: str | None,
+) -> None:
     """Generate Role Dossier reports for jobs from a completed discovery run."""
     from dotenv import load_dotenv  # type: ignore
     load_dotenv(WORKSPACE_ROOT / ".env")
@@ -73,10 +95,26 @@ def main(run_id: str, limit: int | None, job_ids: str | None, dry_run: bool) -> 
     if limit and not job_ids:
         selected = selected[:limit]
 
+    # Resolve research notes directory
+    notes_dir: Path | None = None
+    if research_notes_dir:
+        notes_dir = Path(research_notes_dir)
+        if not notes_dir.exists():
+            click.echo(
+                json.dumps({"warning": f"research-notes-dir does not exist: {notes_dir}"}),
+                err=True,
+            )
+            notes_dir = None
+
     if dry_run:
+        dry_run_jobs = []
+        for j in selected:
+            jid = j["job_id"]
+            has_notes = notes_dir is not None and (notes_dir / f"{jid}.md").exists()
+            dry_run_jobs.append({"job_id": jid, "research_notes": has_notes})
         click.echo(json.dumps({
             "would_analyze": len(selected),
-            "job_ids": [j["job_id"] for j in selected],
+            "jobs": dry_run_jobs,
         }, indent=2))
         return
 
@@ -117,7 +155,10 @@ def main(run_id: str, limit: int | None, job_ids: str | None, dry_run: bool) -> 
             stats["skipped"] += 1
             continue
 
-        click.echo(f"[ANALYZING] {job_id}: {title} @ {company}", err=True)
+        # Load research notes if available
+        research_notes = _load_research_notes(notes_dir, job_id)
+        notes_tag = " [+research]" if research_notes else ""
+        click.echo(f"[ANALYZING] {job_id}: {title} @ {company}{notes_tag}", err=True)
 
         try:
             jd_text = _raw_jd_path(job).read_text(encoding="utf-8")
@@ -127,6 +168,7 @@ def main(run_id: str, limit: int | None, job_ids: str | None, dry_run: bool) -> 
                 job_record=job,
                 taxonomy=taxonomy,
                 llm_client=llm_client,
+                research_notes=research_notes,
             )
 
             # Write Layer 1 report
@@ -142,6 +184,7 @@ def main(run_id: str, limit: int | None, job_ids: str | None, dry_run: bool) -> 
                 "title": title,
                 "company": company,
                 "source_url": job.get("source_url", ""),
+                "research_notes_used": bool(research_notes),
                 **dossier,
             }
 
@@ -164,6 +207,16 @@ def main(run_id: str, limit: int | None, job_ids: str | None, dry_run: bool) -> 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _load_research_notes(notes_dir: Path | None, job_id: str) -> str:
+    """Return research notes content for a job, or empty string if not found."""
+    if notes_dir is None:
+        return ""
+    notes_file = notes_dir / f"{job_id}.md"
+    if notes_file.exists():
+        return notes_file.read_text(encoding="utf-8")
+    return ""
+
 
 def _raw_jd_path(job: dict) -> Path:
     raw_path = job.get("raw_jd_path", "")

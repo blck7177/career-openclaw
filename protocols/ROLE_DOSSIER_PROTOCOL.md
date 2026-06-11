@@ -29,6 +29,8 @@ role_dossier   → "这个岗位到底需要什么人、在解决什么问题"�
 
 ## 触发方式
 
+### 无 pre-research（基础模式）
+
 ```bash
 # 分析该 run 全部已 fetch 的岗位
 ./wrappers/career_analyze_roles --run-id <run_id>
@@ -43,6 +45,71 @@ role_dossier   → "这个岗位到底需要什么人、在解决什么问题"�
 ./wrappers/career_analyze_roles --run-id <run_id> --job-ids <job_id1>,<job_id2>
 ```
 
+### 带 pre-research（推荐，report 质量更高）
+
+先由 agent 做 web research，写 research notes，再触发分析：
+
+```bash
+# Step 1：agent 做 web research，写 research notes 文件
+# （见下方"Pre-Research 步骤"说明）
+
+# Step 2：检查哪些 job 有 research notes
+./wrappers/career_analyze_roles --run-id <run_id> \
+  --research-notes-dir runs/<run_id>/research_notes \
+  --dry-run
+
+# Step 3：运行分析
+./wrappers/career_analyze_roles --run-id <run_id> \
+  --research-notes-dir runs/<run_id>/research_notes
+```
+
+`--research-notes-dir` 指定一个目录，wrapper 会在其中查找 `<job_id>.md` 文件。有 notes 的 job 会用 `[+research]` 标记。没有 notes 的 job 照常运行（向下兼容）。
+
+---
+
+## Pre-Research 步骤（可选，agent 执行）
+
+对每个需要分析的 job，agent 执行以下 web research 流程：
+
+**搜索目标（每个公司最多 3 次 web_search + web_fetch）：**
+
+| 搜索目的 | 查询方向 |
+|---|---|
+| 公司基本情况 | `<company> company overview business model` |
+| 相关团队/部门 | `<company> <team_keyword from title/JD> team structure organization` |
+| 规模/市场定位 | `<company> funding revenue size industry` |
+
+**写 research notes 文件：**
+
+文件路径：`runs/<run_id>/research_notes/<job_id>.md`
+
+格式（固定结构，方便 Layer 1 LLM 解析）：
+
+```markdown
+# Research Notes — <company> (<job_id>)
+Generated: <YYYY-MM-DD>
+
+## Company Overview
+<2-3 paragraphs: what the company does, business model, key products>
+Source: <URL>
+
+## Relevant Division / Team
+<what the specific team or department does, if findable>
+Source: <URL>
+
+## Business Model / Domain Context
+<how this role connects to the company's revenue model or operational structure>
+Source: <URL>
+
+## Research Gaps
+<what you could not find or confirm — be honest about limitations>
+```
+
+**注意：**
+- research notes 是辅助层，JD 仍是主要信息来源
+- 只写从 web_fetch 确认的内容，不要写"可能是"等推测性描述（推测性内容留给 Layer 1 LLM 处理）
+- 如果某家公司信息很少（刚融资的 startup、非知名公司），直接在 Research Gaps 里说明，不要强行填充
+
 ---
 
 ## 输入
@@ -52,6 +119,7 @@ role_dossier   → "这个岗位到底需要什么人、在解决什么问题"�
 | 已结构化 job records | `runs/<run_id>/jobs_structured.json` | 由 career_run_discovery 生成 |
 | 原始 JD 文本 | `runs/<run_id>/raw_jds/<job_id>.txt` | 必须存在，fetch 失败的 job 跳过 |
 | Workstream taxonomy | `configs/workstream_taxonomy.yaml` | 用于 Layer 2 分类约束 |
+| Research notes（可选） | `runs/<run_id>/research_notes/<job_id>.md` | agent 预先写入，缺失时跳过，不报错 |
 
 ---
 

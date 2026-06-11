@@ -266,9 +266,16 @@ Source URL: {source_url}
 
 === ROLE TAXONOMY (use these labels in Section 5 classification) ===
 {taxonomy_labels}
-
+{research_section}
 === JOB DESCRIPTION ===
 {jd_text}
+"""
+
+_RESEARCH_SECTION_WRAPPER = """\
+=== COMPANY / TEAM RESEARCH NOTES ===
+(Use [RESEARCH] label when citing information from this section. \
+Treat these notes as supplementary context — the JD remains the primary source of truth.)
+{research_notes}
 """
 
 # ---------------------------------------------------------------------------
@@ -356,13 +363,24 @@ def analyze_role(
     job_record: dict[str, Any],
     taxonomy: list[dict[str, Any]],
     llm_client,
+    research_notes: str = "",
 ) -> tuple[str, dict[str, Any]]:
     """
     Run two-layer role analysis.
 
+    Args:
+        jd_text:        Raw job description text.
+        job_record:     Dict from jobs_structured.json (title, company, location, etc.).
+        taxonomy:       List of workstream dicts from workstream_taxonomy.yaml.
+        llm_client:     LLM client instance.
+        research_notes: Optional pre-research markdown (company background, team context).
+                        When provided, included in the Layer 1 prompt under a clearly
+                        labelled section; agent cites it with [RESEARCH] evidence labels.
+                        When empty, the Layer 1 prompt is identical to the no-research path.
+
     Returns:
         (report_md, dossier_dict)
-        report_md  — Layer 1 narrative markdown report
+        report_md    — Layer 1 narrative markdown report (English)
         dossier_dict — Layer 2 structured dossier (matches role_dossier.schema.json)
 
     Raises:
@@ -374,7 +392,9 @@ def analyze_role(
 
     taxonomy_labels = _format_taxonomy_labels(taxonomy)
 
-    report_md = _generate_role_report(jd_text, job_record, taxonomy_labels, llm_client)
+    report_md = _generate_role_report(
+        jd_text, job_record, taxonomy_labels, llm_client, research_notes
+    )
     dossier = _fill_dossier_schema(jd_text, report_md, taxonomy_labels, llm_client)
 
     return report_md, dossier
@@ -395,13 +415,21 @@ def _generate_role_report(
     job_record: dict[str, Any],
     taxonomy_labels: str,
     llm_client,
+    research_notes: str = "",
 ) -> str:
+    research_section = (
+        _RESEARCH_SECTION_WRAPPER.format(research_notes=research_notes.strip())
+        if research_notes.strip()
+        else ""
+    )
+
     user_msg = _LAYER1_USER_TEMPLATE.format(
         title=job_record.get("title", "Unknown"),
         company=job_record.get("company", "Unknown"),
         location=job_record.get("location", ""),
         source_url=job_record.get("source_url", ""),
         taxonomy_labels=taxonomy_labels,
+        research_section=research_section,
         jd_text=jd_text[:7000],
     )
 
