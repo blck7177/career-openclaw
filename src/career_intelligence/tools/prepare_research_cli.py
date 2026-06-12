@@ -35,7 +35,11 @@ from pathlib import Path
 import click
 import yaml
 
-WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
+from career_intelligence.app_state.context import DEV_CTX
+from career_intelligence.app_state.workspace_paths import get_repo_root, get_workspace_paths
+
+REPO_ROOT = get_repo_root()
+WORKSPACE_ROOT = get_workspace_paths(DEV_CTX.workspace_id).root
 
 _TITLE_NOISE_WORDS = frozenset({
     "senior", "sr", "junior", "jr", "lead", "staff", "principal", "associate",
@@ -171,7 +175,7 @@ def main(
 ) -> None:
     """Generate targeted research plans for jobs from a completed discovery run."""
     from dotenv import load_dotenv  # type: ignore
-    load_dotenv(WORKSPACE_ROOT / ".env")
+    load_dotenv(REPO_ROOT / ".env")
 
     run_dir = WORKSPACE_ROOT / "runs" / run_id
     if not run_dir.exists():

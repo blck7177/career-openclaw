@@ -8,7 +8,13 @@ from pathlib import Path
 
 import click
 
-WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
+from career_intelligence.app_state.context import DEV_CTX
+from career_intelligence.app_state.workspace_paths import get_repo_root, get_workspace_paths
+
+# REPO_ROOT: repo root — contains configs/, schemas/, .env
+REPO_ROOT = get_repo_root()
+# WORKSPACE_ROOT: workspace data root — contains runs/, db/, strategy_state.json
+WORKSPACE_ROOT = get_workspace_paths(DEV_CTX.workspace_id).root
 
 
 @click.command()
@@ -18,7 +24,7 @@ WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
 def main(from_candidates: str, dry_run: bool, max_jobs: int | None) -> None:
     """Process a candidate pool through the full pipeline (fetch → classify → extract → validate → save)."""
     from dotenv import load_dotenv  # type: ignore
-    load_dotenv(WORKSPACE_ROOT / ".env")
+    load_dotenv(REPO_ROOT / ".env")
 
     candidates_path = Path(from_candidates)
     if not candidates_path.exists():
@@ -36,6 +42,7 @@ def main(from_candidates: str, dry_run: bool, max_jobs: int | None) -> None:
         candidates_file=candidates_path,
         dry_run=dry_run,
         max_jobs=max_jobs,
+        config_root=REPO_ROOT,
     )
 
     click.echo(json.dumps(result, indent=2, ensure_ascii=False))

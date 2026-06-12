@@ -137,13 +137,31 @@
             "type": "string",
             "description": "Exact or closely summarized phrase from the JD."
           },
+          "demand_type": {
+            "type": "string",
+            "enum": [
+              "domain_knowledge",
+              "technical_skill",
+              "analytical_capability",
+              "workflow_capability",
+              "stakeholder_capability",
+              "business_context_knowledge",
+              "operating_judgment",
+              "mixed"
+            ],
+            "description": "Category of demand. domain_knowledge = field-specific knowledge; technical_skill = tool/language/platform fluency; analytical_capability = reasoning and judgment; workflow_capability = execution and process behavior; stakeholder_capability = communication and relationship behavior; business_context_knowledge = business model/market/org context; operating_judgment = prioritization and tradeoff decision-making; mixed = clearly spans multiple categories."
+          },
           "underlying_capability": {
             "type": "string",
-            "description": "What this JD phrase actually requires the person to do in practice."
+            "description": "What this JD phrase actually requires the person to do or understand in practice."
           },
           "importance": {
             "type": "string",
             "enum": ["core", "supporting", "nice_to_have"]
+          },
+          "research_contribution": {
+            "type": "string",
+            "description": "What research clarified, narrowed, or changed about this demand. Empty string if research adds nothing."
           },
           "evidence": {
             "type": "array",
@@ -155,7 +173,7 @@
           }
         }
       },
-      "description": "Translation of JD keywords into real underlying capabilities (up to 8 most important)."
+      "description": "Translation of JD phrases into the actual demand stack (domain knowledge / technical skill / analytical / workflow / stakeholder / operating judgment). Up to 8 most important demands."
     },
 
     "primary_workstream": {

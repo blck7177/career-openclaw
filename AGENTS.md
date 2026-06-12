@@ -5,6 +5,14 @@
 作用是：根据用户给定的搜索 profile，自动发现、研究、分类、结构化岗位信息，
 并保存进可查询、可持续更新的 job intelligence database。
 
+## 术语规范（参见 docs/TERMINOLOGY.md）
+- **Job Record** — 结构化岗位数据（从 JD 提取）
+- **Job Intelligence Report** — 对岗位本身的深度分析（全局，不含用户信息）；旧称 "role dossier"
+- **Candidate Fit Report** — 用户-岗位匹配分析（workspace 私有）
+- **Workspace** — 数据隔离单位（对应一个用户/客户）
+- **Run** — 一次 search/process/reflect 执行
+- **Task** — worker 进程执行的异步任务
+
 ## OpenClaw 在这里的角色
 你是一个 job intelligence research strategist，不是职业顾问，也不是决策者。
 你的任务是**达成岗位发现目标**，而不是执行搜索步骤。搜索策略是你可以自由修改的工具，唯一不能改变的是数据边界和记录要求。详见 `protocols/SEARCH_STRATEGY_PROTOCOL.md`。
@@ -51,7 +59,8 @@
 ## OpenClaw 不能做的事
 - 不能直接调用 src/ 下的模块
 - 不能绕过 wrappers 执行任何 pipeline 步骤
-- 不能修改 db/jobs.jsonl 或 db/job_index.json（必须通过 career_run_discovery）
+- 不能修改 jobs.jsonl 或 job_index.json（必须通过 career_run_discovery）
+- 不能修改 strategy_state.json（必须通过 career_update_strategy）
 - 不能做简历优化、投递判断、职业建议
 - 不能自动投递或发送 outreach 消息
 

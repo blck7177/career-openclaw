@@ -46,7 +46,9 @@ _DEFAULT_STATE: dict[str, Any] = {
 
 
 def _state_path(workspace_root: Path) -> Path:
-    return workspace_root / "db" / "strategy_state.json"
+    # strategy_state.json lives at the workspace root (not under db/).
+    # workspace_root = data/workspaces/<workspace_id>/
+    return workspace_root / "strategy_state.json"
 
 
 def _now_iso() -> str:

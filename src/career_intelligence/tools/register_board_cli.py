@@ -32,8 +32,10 @@ from pathlib import Path
 import yaml
 
 
-WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
-BOARDS_PATH = WORKSPACE_ROOT / "configs" / "company_boards.yaml"
+from career_intelligence.app_state.workspace_paths import get_repo_root
+
+REPO_ROOT = get_repo_root()
+BOARDS_PATH = REPO_ROOT / "configs" / "company_boards.yaml"
 
 VALID_SOURCES = {"greenhouse", "lever", "ashby", "workday", "html"}
 VALID_STATUSES = {"active", "best_effort", "hard_source", "unknown"}

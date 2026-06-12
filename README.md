@@ -4,16 +4,18 @@
 
 ## 工作模式
 
-一次完整 run 分三步：
+一次完整 run 分五步：
 
 ```
-Search  →  Process  →  Reflect
+Search  →  Process  →  Research Notes  →  Analyze Roles  →  Reflect
 ```
 
 | 步骤 | 目标 | 由谁负责 |
 |---|---|---|
 | **Search** | 找到真实 JD URL，写入 candidate_pool | Agent-led，自由探索 |
 | **Process** | 把 candidate_pool 批量处理成结构化 job records 入库 | Tool-enforced，deterministic |
+| **Research Notes** | 为每个 job 写 web research notes，定位 role operating context | Agent 调研，写入 `runs/<run_id>/research_notes/` |
+| **Analyze Roles** | 两层 role dossier 分析：narrative report + structured JSON schema | Tool-enforced，LLM-driven |
 | **Reflect** | 分析 failures 和 coverage gap，更新 strategy_state | Agent 诊断，写回策略 |
 
 不是让 agent 变聪明，而是让流程有保证。
@@ -56,7 +58,28 @@ cp .env.example .env
 ./wrappers/career_summarize_run --run-id <id> --format markdown
 ```
 
-**Step 3 — Reflect**
+**Step 3 — Research Notes**（可选但推荐）
+```bash
+# agent: web_search + web_fetch → 为每个 job 写 research context
+# 写入 runs/<id>/research_notes/<job_id>.md
+./wrappers/career_prepare_research --run-id <id>
+```
+
+**Step 4 — Analyze Roles**
+```bash
+# 有 research notes 时（推荐）:
+./wrappers/career_analyze_roles --run-id <id> \
+  --research-notes-dir runs/<id>/research_notes
+
+# 无 research notes 时:
+./wrappers/career_analyze_roles --run-id <id> --allow-missing-research
+
+# 结果写入:
+#   runs/<id>/role_dossier_reports/<job_id>.md   Layer 1 narrative report
+#   runs/<id>/role_dossiers.jsonl                Layer 2 structured dossier
+```
+
+**Step 5 — Reflect**
 ```bash
 # agent 写 agent_work/drafts/strategy_patch_<id>.json
 ./wrappers/career_update_strategy --run-id <id> --patch-file agent_work/drafts/strategy_patch_<id>.json
@@ -108,7 +131,8 @@ career-openclaw/
 ├── schemas/                         ← JSON Schema 定义
 │   ├── job_record.schema.json
 │   ├── run_config.schema.json
-│   └── run_summary.schema.json
+│   ├── run_summary.schema.json
+│   └── role_dossier.schema.json     ← Layer 2 structured dossier schema（含 demand_type / research_contribution）
 │
 ├── src/career_intelligence/         ← Python 业务逻辑（agent 不直接调用）
 │   ├── runner.py                    ← discovery pipeline 主入口
@@ -116,11 +140,12 @@ career-openclaw/
 │   ├── extractor.py                 ← LLM 结构化提取
 │   ├── classifier.py                ← workstream 分类
 │   ├── validator.py                 ← schema 校验
+│   ├── role_analyzer.py             ← two-layer role dossier 生成（Layer 1 narrative + Layer 2 schema）
+│   ├── llm_role_context.py          ← LLM training-knowledge context hint（非 web research）
 │   ├── search_session.py            ← search session 状态管理
 │   ├── strategy_state.py            ← 跨 run strategy 读写
 │   ├── storage_jsonl.py             ← db 读写（去重 + append）
 │   ├── run_logger.py                ← run artifact 记录
-│   ├── researcher.py                ← LLM research helper
 │   ├── llm_client.py                ← LLM API client
 │   └── tools/                      ← CLI adapter（wrappers 的实际实现）
 │
@@ -132,6 +157,8 @@ career-openclaw/
 │   ├── career_validate_run          ← Process：验证 run output
 │   ├── career_query_jobs            ← Process/Query：查询已入库岗位
 │   ├── career_summarize_run         ← Process/Reflect：run summary
+│   ├── career_prepare_research      ← Research Notes：写 research_notes/<job_id>.md
+│   ├── career_analyze_roles         ← Analyze Roles：生成 role dossier reports + dossiers.jsonl
 │   ├── career_read_strategy         ← Reflect/Search：读取策略状态
 │   └── career_update_strategy       ← Reflect：写回策略 patch
 │
@@ -145,16 +172,21 @@ career-openclaw/
 │   ├── README.md
 │   └── <session_id>/
 │       ├── run_config.yaml
-│       ├── candidate_pool.jsonl     ← Search → Process 的边界文件
-│       ├── search_ledger.jsonl      ← 每次 query 的审计记录
+│       ├── candidate_pool.jsonl         ← Search → Process 的边界文件
+│       ├── search_ledger.jsonl          ← 每次 query 的审计记录
 │       ├── coverage_report.md
 │       ├── jobs_structured.json
 │       ├── run_log.jsonl
 │       ├── run_summary.json / .md
-│       ├── validation_errors.jsonl  ← 出现时才有
-│       ├── skipped_results.jsonl    ← 出现时才有
-│       └── raw_jds/                 ← 每个成功 fetch 的 JD 原文
-│           └── job_<hash>.txt
+│       ├── validation_errors.jsonl      ← 出现时才有
+│       ├── skipped_results.jsonl        ← 出现时才有
+│       ├── raw_jds/                     ← 每个成功 fetch 的 JD 原文
+│       │   └── job_<hash>.txt
+│       ├── research_notes/              ← agent 写入的 web research context（Analyze Roles 输入）
+│       │   └── job_<hash>.md
+│       ├── role_dossier_reports/        ← Layer 1 narrative dossier report（Analyze Roles 输出）
+│       │   └── job_<hash>.md
+│       └── role_dossiers.jsonl          ← Layer 2 structured dossier records（append-only）
 │
 ├── agent_work/                      ← agent 可写工作区
 │   ├── drafts/                      ← query JSON、candidates batch、strategy_state.md、strategy_patch_*.json

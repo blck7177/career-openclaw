@@ -1,0 +1,218 @@
+"""
+WorkspacePaths and GlobalPaths — single source of truth for all filesystem paths.
+
+Rules:
+- No code outside app_state/ or services/ should construct data paths manually.
+- All paths are derived from data_root, which defaults to get_data_root().
+- CLI tools and wrappers call get_workspace_paths(ctx) to obtain a WorkspacePaths instance.
+
+Directory layout:
+
+    data/
+      app.sqlite
+      global/
+        jobs_cache.jsonl
+        job_reports.jsonl
+        job_report_artifacts/
+          <job_report_id>/
+            report.md
+            structured.json
+            sources.json
+      workspaces/
+        <workspace_id>/
+          db/
+            jobs.jsonl
+            job_index.json
+            fit_reports.jsonl
+          runs/
+            <run_id>/
+              run_config.yaml
+              candidate_pool.jsonl
+              ...
+          uploads/
+            resumes/
+          profiles/
+          strategy_state.json
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+
+def get_repo_root() -> Path:
+    """Absolute path to the career-openclaw repo root.
+
+    This file lives at:
+      career-openclaw/src/career_intelligence/app_state/workspace_paths.py
+    parents[3] resolves to career-openclaw/.
+    """
+    return Path(__file__).resolve().parents[3]
+
+
+def get_data_root() -> Path:
+    """Absolute path to the data/ directory at the repo root."""
+    return get_repo_root() / "data"
+
+
+class WorkspacePaths:
+    """All filesystem paths scoped to a single workspace."""
+
+    def __init__(self, data_root: Path, workspace_id: str) -> None:
+        self.workspace_id = workspace_id
+        self.root = data_root / "workspaces" / workspace_id
+
+    # -------------------------------------------------------------------------
+    # Database (structured job records, fit reports)
+    # -------------------------------------------------------------------------
+
+    @property
+    def db_dir(self) -> Path:
+        return self.root / "db"
+
+    @property
+    def jobs_db(self) -> Path:
+        return self.db_dir / "jobs.jsonl"
+
+    @property
+    def job_index(self) -> Path:
+        return self.db_dir / "job_index.json"
+
+    @property
+    def fit_reports_db(self) -> Path:
+        return self.db_dir / "fit_reports.jsonl"
+
+    # -------------------------------------------------------------------------
+    # Strategy state
+    # -------------------------------------------------------------------------
+
+    @property
+    def strategy_state(self) -> Path:
+        """Cross-run search strategy, workspace-scoped."""
+        return self.root / "strategy_state.json"
+
+    # -------------------------------------------------------------------------
+    # Runs
+    # -------------------------------------------------------------------------
+
+    @property
+    def runs_root(self) -> Path:
+        return self.root / "runs"
+
+    def run_dir(self, run_id: str) -> Path:
+        return self.runs_root / run_id
+
+    # -------------------------------------------------------------------------
+    # Uploads and profiles (user-private)
+    # -------------------------------------------------------------------------
+
+    @property
+    def uploads_dir(self) -> Path:
+        return self.root / "uploads"
+
+    @property
+    def resumes_dir(self) -> Path:
+        return self.uploads_dir / "resumes"
+
+    @property
+    def profiles_dir(self) -> Path:
+        return self.root / "profiles"
+
+    # -------------------------------------------------------------------------
+    # Reports (fit reports, workspace-scoped)
+    # -------------------------------------------------------------------------
+
+    @property
+    def reports_dir(self) -> Path:
+        return self.root / "reports"
+
+    def fit_report_dir(self, fit_report_id: str) -> Path:
+        return self.reports_dir / fit_report_id
+
+    # -------------------------------------------------------------------------
+    # Helpers
+    # -------------------------------------------------------------------------
+
+    def ensure_dirs(self) -> None:
+        """Create all workspace subdirectories if they don't exist."""
+        for d in [
+            self.db_dir,
+            self.runs_root,
+            self.uploads_dir,
+            self.resumes_dir,
+            self.profiles_dir,
+            self.reports_dir,
+        ]:
+            d.mkdir(parents=True, exist_ok=True)
+
+
+class GlobalPaths:
+    """All filesystem paths for global (cross-workspace) data."""
+
+    def __init__(self, data_root: Path) -> None:
+        self.root = data_root / "global"
+
+    # -------------------------------------------------------------------------
+    # Global job cache
+    # -------------------------------------------------------------------------
+
+    @property
+    def jobs_cache(self) -> Path:
+        return self.root / "jobs_cache.jsonl"
+
+    # -------------------------------------------------------------------------
+    # Job Intelligence Reports
+    # -------------------------------------------------------------------------
+
+    @property
+    def job_reports_index(self) -> Path:
+        """Global JSONL index of all Job Intelligence Reports."""
+        return self.root / "job_reports.jsonl"
+
+    @property
+    def job_report_artifacts_root(self) -> Path:
+        return self.root / "job_report_artifacts"
+
+    def job_report_dir(self, job_report_id: str) -> Path:
+        """Directory containing all artifacts for one Job Intelligence Report."""
+        return self.job_report_artifacts_root / job_report_id
+
+    def job_report_narrative(self, job_report_id: str) -> Path:
+        """Layer 1 narrative markdown report."""
+        return self.job_report_dir(job_report_id) / "report.md"
+
+    def job_report_structured(self, job_report_id: str) -> Path:
+        """Layer 2 structured JSON (conforms to job_report.schema.json)."""
+        return self.job_report_dir(job_report_id) / "structured.json"
+
+    def job_report_sources(self, job_report_id: str) -> Path:
+        """Web research sources used to produce this report."""
+        return self.job_report_dir(job_report_id) / "sources.json"
+
+    # -------------------------------------------------------------------------
+    # Helpers
+    # -------------------------------------------------------------------------
+
+    def ensure_dirs(self) -> None:
+        for d in [self.root, self.job_report_artifacts_root]:
+            d.mkdir(parents=True, exist_ok=True)
+
+
+def get_workspace_paths(
+    workspace_id: str,
+    data_root: Path | None = None,
+) -> WorkspacePaths:
+    """
+    Convenience factory. Uses get_data_root() if data_root is not provided.
+
+    Usage in CLI tools:
+        from career_intelligence.app_state import DEV_CTX
+        from career_intelligence.app_state.workspace_paths import get_workspace_paths
+        paths = get_workspace_paths(DEV_CTX.workspace_id)
+    """
+    return WorkspacePaths(data_root or get_data_root(), workspace_id)
+
+
+def get_global_paths(data_root: Path | None = None) -> GlobalPaths:
+    """Convenience factory for GlobalPaths."""
+    return GlobalPaths(data_root or get_data_root())

@@ -27,7 +27,11 @@ from pathlib import Path
 import click
 import yaml
 
-WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
+from career_intelligence.app_state.context import DEV_CTX
+from career_intelligence.app_state.workspace_paths import get_repo_root, get_workspace_paths
+
+REPO_ROOT = get_repo_root()
+WORKSPACE_ROOT = get_workspace_paths(DEV_CTX.workspace_id).root
 ANALYSIS_VERSION = "0.1.0"
 
 
@@ -66,7 +70,7 @@ def main(
 ) -> None:
     """Generate Role Dossier reports for jobs from a completed discovery run."""
     from dotenv import load_dotenv  # type: ignore
-    load_dotenv(WORKSPACE_ROOT / ".env")
+    load_dotenv(REPO_ROOT / ".env")
 
     run_dir = WORKSPACE_ROOT / "runs" / run_id
     if not run_dir.exists():
@@ -153,7 +157,7 @@ def main(
         sys.exit(1)
 
     # Taxonomy
-    taxonomy_path = WORKSPACE_ROOT / "configs" / "workstream_taxonomy.yaml"
+    taxonomy_path = REPO_ROOT / "configs" / "workstream_taxonomy.yaml"
     with open(taxonomy_path, encoding="utf-8") as f:
         taxonomy_data = yaml.safe_load(f)
     taxonomy = taxonomy_data.get("workstreams", [])

@@ -9,7 +9,9 @@ import click
 
 from career_intelligence.search_session import get_session_status
 
-WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
+from career_intelligence.app_state.context import DEV_CTX
+from career_intelligence.app_state.workspace_paths import get_workspace_paths
+WORKSPACE_ROOT = get_workspace_paths(DEV_CTX.workspace_id).root
 
 
 @click.command()

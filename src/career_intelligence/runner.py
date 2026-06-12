@@ -67,13 +67,21 @@ def run_processing_pipeline(
     candidates_file: Path,
     dry_run: bool = False,
     max_jobs: int | None = None,
+    config_root: Path | None = None,
 ) -> dict[str, Any]:
     """
     Process a candidate_pool.jsonl and produce structured job records.
 
+    workspace_root : path to workspace data directory (runs/, db/).
+                     e.g. data/workspaces/dev_default/
+    config_root    : path containing configs/ and schemas/ subdirectories.
+                     Defaults to workspace_root for backward compatibility.
+                     In production, pass the repo root.
+
     Returns a summary dict.
     """
     t_start = time.time()
+    _config_root = config_root if config_root is not None else workspace_root
 
     run_dir = workspace_root / "runs" / session_id
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -102,7 +110,7 @@ def run_processing_pipeline(
     if llm_client is None:
         log_step(run_dir, "llm_init", None, "warning", {"message": "No LLM client — extraction will use empty stubs"})
 
-    boards_registry = load_company_boards(workspace_root)
+    boards_registry = load_company_boards(_config_root)
     db_dir = workspace_root / "db"
 
     stats = {"jobs_discovered": len(candidates), "jobs_fetched": 0,
@@ -155,10 +163,10 @@ def run_processing_pipeline(
         # Step 2: LLM role context (training-knowledge hint for extraction, not web research)
         role_context_obj = get_llm_role_context(company, title, llm_client)
         role_context_str = role_context_obj.company_description
-        log_step(run_dir, "research_done", job_id, "success")
+        log_step(run_dir, "llm_context_done", job_id, "success")
 
         # Step 3: Classify
-        classification = classify_workstream(jd_text, {}, workspace_root, llm_client)
+        classification = classify_workstream(jd_text, {}, _config_root, llm_client)
         log_step(run_dir, "classify_done", job_id, "success", {
             "primary": classification.primary_workstream,
             "confidence": classification.classification_confidence,
@@ -196,7 +204,7 @@ def run_processing_pipeline(
         # Use a temp copy so that the schema's validation_status enum constraint
         # (which disallows "pending") does not block self-validation.
         record_for_validation = {**record, "validation_status": "passed", "validation_errors": []}
-        validation = validate_record(record_for_validation, workspace_root)
+        validation = validate_record(record_for_validation, _config_root)
         record["validation_status"] = "passed" if validation.passed else "failed"
         record["validation_errors"] = validation.errors
 

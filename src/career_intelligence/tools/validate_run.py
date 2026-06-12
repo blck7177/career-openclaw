@@ -8,7 +8,11 @@ from pathlib import Path
 
 import click
 
-WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
+from career_intelligence.app_state.context import DEV_CTX
+from career_intelligence.app_state.workspace_paths import get_repo_root, get_workspace_paths
+
+REPO_ROOT = get_repo_root()
+WORKSPACE_ROOT = get_workspace_paths(DEV_CTX.workspace_id).root
 
 
 @click.command()
@@ -31,7 +35,7 @@ def main(run_id: str, fmt: str) -> None:
     results = []
     all_passed = True
     for record in records:
-        vr = validate_record(record, WORKSPACE_ROOT)
+        vr = validate_record(record, REPO_ROOT)
         results.append({
             "job_id": record.get("job_id"),
             "title": record.get("title"),

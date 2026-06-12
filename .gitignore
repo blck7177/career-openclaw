@@ -2,36 +2,61 @@
 .env
 *.env
 
+# ============================================================
+# Workspace data — ALL user data, artifacts, databases
+# Only data/.gitkeep is tracked; everything inside is gitignored.
+# ============================================================
+data/app.sqlite
+data/global/
+data/workspaces/
+
 # OpenClaw agent runtime state
 .openclaw/
 
 # Accidental pip install artifacts
 =*
 
-# Database — schema and strategy are tracked, generated data is not
-db/jobs.jsonl
-db/jobs.sqlite
-db/job_index.json
+# ============================================================
+# Legacy runs/ (root-level, kept read-only after Sprint 0 migration)
+# New runs go to data/workspaces/<id>/runs/ which is covered above.
+# ============================================================
 
-# Raw JD content (preserved in runs/, not committed)
+# Raw JD content
 runs/*/raw_jds/
 
-# Run generated outputs — only run_config.yaml is tracked
+# Generated outputs — only run_config.yaml is committed
 runs/*/run_log.jsonl
 runs/*/jobs_structured.json
 runs/*/candidate_pool.jsonl
+runs/*/candidate_pool.json
 runs/*/search_ledger.jsonl
 runs/*/validation_errors.jsonl
 runs/*/skipped_results.jsonl
 runs/*/run_summary.json
 runs/*/run_summary.md
 runs/*/coverage_report.md
+runs/*/role_dossiers.jsonl
+runs/*/role_research_tasks.jsonl
 
-# Agent work drafts and outputs (not committed)
+# Prevent new role analysis artifacts in legacy runs/ path
+runs/*/role_dossier_reports/
+runs/*/role_research_plans/
+runs/*/research_notes/
+
+# ============================================================
+# Database — schema tracked, generated data is not
+# ============================================================
+db/jobs.jsonl
+db/jobs.sqlite
+db/job_index.json
+
+# Agent work drafts and outputs
 agent_work/drafts/
 agent_work/outputs/
 
+# ============================================================
 # Python
+# ============================================================
 __pycache__/
 *.pyc
 *.pyo
@@ -43,6 +68,14 @@ build/
 .pytest_cache/
 .ruff_cache/
 
-# IDE
+# ============================================================
+# Node / Next.js  (apps/web/ has its own .gitignore too)
+# ============================================================
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# IDE / OS
 .DS_Store
 *.swp

@@ -10,9 +10,11 @@ from pathlib import Path
 
 import click
 
+from career_intelligence.app_state.context import DEV_CTX
+from career_intelligence.app_state.workspace_paths import get_workspace_paths
 from career_intelligence.strategy_state import read_state
 
-WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
+WORKSPACE_ROOT = get_workspace_paths(DEV_CTX.workspace_id).root
 
 
 @click.command()
@@ -23,7 +25,7 @@ WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
     help="Output format.",
 )
 def main(fmt: str) -> None:
-    """Read cross-run strategy state from db/strategy_state.json."""
+    """Read cross-run strategy state from the workspace strategy_state.json."""
     state = read_state(WORKSPACE_ROOT)
 
     if fmt == "json":
