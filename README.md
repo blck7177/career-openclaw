@@ -1,51 +1,59 @@
-# Career OpenClaw Agent
+# Career OpenClaw
 
-> **把"我想找什么方向的工作"转化为"结构化岗位研究数据库"的 agent workflow。**
+> **把"我想找什么方向的工作"转化为"结构化岗位情报数据库"的 agent workflow + web 平台。**
 
-## 工作模式
+---
 
-一次完整 run 分五步：
+## 架构概览
+
+系统分两层运作：
+
+**Phase 1 — Agent Pipeline（稳定运行）**
 
 ```
 Search  →  Process  →  Research Notes  →  Analyze Roles  →  Reflect
 ```
 
-| 步骤 | 目标 | 由谁负责 |
-|---|---|---|
-| **Search** | 找到真实 JD URL，写入 candidate_pool | Agent-led，自由探索 |
-| **Process** | 把 candidate_pool 批量处理成结构化 job records 入库 | Tool-enforced，deterministic |
-| **Research Notes** | 为每个 job 写 web research notes，定位 role operating context | Agent 调研，写入 `runs/<run_id>/research_notes/` |
-| **Analyze Roles** | 两层 role dossier 分析：narrative report + structured JSON schema | Tool-enforced，LLM-driven |
-| **Reflect** | 分析 failures 和 coverage gap，更新 strategy_state | Agent 诊断，写回策略 |
+OpenClaw agent 驱动五步流程，产出结构化 Job Records 和 Job Intelligence Reports。
 
-不是让 agent 变聪明，而是让流程有保证。
+**Phase 2 — Web 平台（Sprint 0–3 完成）**
+
+```
+Next.js UI  →  FastAPI  →  Worker（异步分析）
+```
+
+浏览器端查看岗位、Runs、报告，支持一键触发异步 Job Intelligence Report 生成。
 
 ---
 
 ## 快速开始
 
-### 1. 环境准备
+### 环境准备
 
 ```bash
 cd career-openclaw
 python -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[dev,anthropic]"   # 或 openai
 cp .env.example .env
 # 编辑 .env，填入 ANTHROPIC_API_KEY 或 OPENAI_API_KEY
 ```
 
-### 2. 配置 exec-approvals
+---
 
-将 `openclaw_integration/exec-approvals.template.json` 中的 allowlist 合并到 `~/.openclaw/exec-approvals.json`，让 OpenClaw 信任 wrappers 的 exec 调用。
+### 模式一：Agent / CLI 流程
 
-### 3. 运行一次 discovery
+配置 exec-approvals（让 OpenClaw 信任 wrappers）：
 
-在 OpenClaw 里触发 `career-research-orchestrator` skill，或手动执行三步：
+```bash
+# 将 openclaw_integration/exec-approvals.template.json 合并到 ~/.openclaw/exec-approvals.json
+```
+
+在 OpenClaw 里触发 `career-research-orchestrator` skill，或手动执行：
 
 **Step 1 — Search**
 ```bash
-./wrappers/career_read_strategy                              # 加载上一轮策略
+./wrappers/career_read_strategy
 ./wrappers/career_search_session start --profile market_risk_nyc
 # agent: web_search → web_fetch → log-query → log_candidates（循环）
 ./wrappers/career_search_session end --session-id <id>
@@ -60,9 +68,8 @@ cp .env.example .env
 
 **Step 3 — Research Notes**（可选但推荐）
 ```bash
-# agent: web_search + web_fetch → 为每个 job 写 research context
-# 写入 runs/<id>/research_notes/<job_id>.md
 ./wrappers/career_prepare_research --run-id <id>
+# agent: web_search + web_fetch → 写入 runs/<id>/research_notes/<job_id>.md
 ```
 
 **Step 4 — Analyze Roles**
@@ -73,15 +80,11 @@ cp .env.example .env
 
 # 无 research notes 时:
 ./wrappers/career_analyze_roles --run-id <id> --allow-missing-research
-
-# 结果写入:
-#   runs/<id>/role_dossier_reports/<job_id>.md   Layer 1 narrative report
-#   runs/<id>/role_dossiers.jsonl                Layer 2 structured dossier
+# 结果写入 runs/<id>/role_dossier_reports/ 和 runs/<id>/role_dossiers.jsonl
 ```
 
 **Step 5 — Reflect**
 ```bash
-# agent 写 agent_work/drafts/strategy_patch_<id>.json
 ./wrappers/career_update_strategy --run-id <id> --patch-file agent_work/drafts/strategy_patch_<id>.json
 ```
 
@@ -91,10 +94,45 @@ cp .env.example .env
 ./wrappers/career_query_jobs --workstream "Market Risk / Exposure Monitoring"
 ```
 
-### 4. 自动驱动 Search 循环（可选）
-
+**自动驱动 Search 循环**
 ```bash
 bash scripts/monitor_search.sh <session_id>
+```
+
+---
+
+### 模式二：Web 平台（本地开发，3 个终端）
+
+```bash
+# 终端 1 — FastAPI
+cd career-openclaw
+.venv/bin/uvicorn apps.api.main:app --reload --port 8000
+
+# 终端 2 — Worker
+cd career-openclaw
+PYTHONPATH=. .venv/bin/python -m apps.worker.worker
+
+# 终端 3 — Next.js
+cd career-openclaw/apps/web
+npm install && npm run dev
+# → http://localhost:3000
+```
+
+无浏览器时用 `X-Dev-Context: dev` header 跳过 auth（`DEV_MODE=1` 默认开启）：
+
+```bash
+curl -H "X-Dev-Context: dev" http://localhost:8000/api/jobs
+curl -X POST -H "X-Dev-Context: dev" http://localhost:8000/api/jobs/<job_id>/analyze
+```
+
+### 模式三：Docker（api + worker）
+
+```bash
+cd career-openclaw
+cp .env.example .env
+docker compose -f infra/docker-compose.yml up --build
+# API → http://localhost:8000
+# Next.js 仍在本地运行
 ```
 
 ---
@@ -105,34 +143,21 @@ bash scripts/monitor_search.sh <session_id>
 career-openclaw/
 ├── AGENTS.md                        ← OpenClaw 项目边界（agent 必须先读）
 ├── pyproject.toml                   ← Python 包定义 + 依赖
+├── docs/
+│   └── TERMINOLOGY.md               ← 核心概念定义（Job Record / Job Intelligence Report / Task 等）
 │
-├── skills/                          ← OpenClaw skills（agent 工作模式）
-│   ├── career-research-orchestrator/
-│   │   └── SKILL.md                 ← 总控：Search → Process → Reflect 路由
-│   ├── career-search-operator/
-│   │   └── SKILL.md                 ← Search：agent-led 探索，高自由度
-│   ├── career-run-processor/
-│   │   └── SKILL.md                 ← Process：触发 pipeline，读结果
-│   └── career-strategy-reviewer/
-│       └── SKILL.md                 ← Reflect：诊断 failures，更新 strategy
-│
-├── protocols/                       ← 行为规范和领域知识（human-owned）
-│   ├── PROJECT_PROTOCOL.md          ← pipeline 内部步骤规范
-│   ├── SEARCH_STRATEGY_PROTOCOL.md  ← search session 详细指南
-│   ├── OUTPUT_CONTRACT.md           ← 输出字段规范
-│   ├── DATA_POLICY.md               ← source 和存储边界
-│   └── WORKSTREAM_TAXONOMY.md       ← workstream 分类判断指南（枚举见 configs/workstream_taxonomy.yaml）
-│
-├── configs/                         ← human-owned 配置（agent 不可修改）
-│   ├── search_profiles.yaml         ← 搜索 profile 定义
-│   ├── source_policy.yaml           ← source 白名单/黑名单
-│   └── workstream_taxonomy.yaml     ← workstream 枚举（机器可读，代码依赖）
-│
-├── schemas/                         ← JSON Schema 定义
-│   ├── job_record.schema.json
-│   ├── run_config.schema.json
-│   ├── run_summary.schema.json
-│   └── role_dossier.schema.json     ← Layer 2 structured dossier schema（含 demand_type / research_contribution）
+├── apps/                            ← Phase 2 应用层
+│   ├── api/                         ← FastAPI REST API
+│   │   ├── main.py                  ← App 入口（uvicorn apps.api.main:app）
+│   │   ├── deps.py                  ← Auth + RequestContext 注入
+│   │   └── routes/                  ← auth, jobs, runs, reports, tasks
+│   ├── worker/                      ← 异步任务 worker
+│   │   ├── worker.py                ← poll 主循环（python -m apps.worker.worker）
+│   │   └── handlers/job_report.py   ← job_report 任务处理
+│   └── web/                         ← Next.js 16 前端
+│       ├── app/                     ← App Router 页面
+│       ├── components/              ← nav、analyze-button、shadcn/ui
+│       └── lib/api.ts               ← 类型化 API client
 │
 ├── src/career_intelligence/         ← Python 业务逻辑（agent 不直接调用）
 │   ├── runner.py                    ← discovery pipeline 主入口
@@ -140,16 +165,38 @@ career-openclaw/
 │   ├── extractor.py                 ← LLM 结构化提取
 │   ├── classifier.py                ← workstream 分类
 │   ├── validator.py                 ← schema 校验
-│   ├── role_analyzer.py             ← two-layer role dossier 生成（Layer 1 narrative + Layer 2 schema）
-│   ├── llm_role_context.py          ← LLM training-knowledge context hint（非 web research）
-│   ├── search_session.py            ← search session 状态管理
-│   ├── strategy_state.py            ← 跨 run strategy 读写
-│   ├── storage_jsonl.py             ← db 读写（去重 + append）
-│   ├── run_logger.py                ← run artifact 记录
-│   ├── llm_client.py                ← LLM API client
-│   └── tools/                      ← CLI adapter（wrappers 的实际实现）
+│   ├── role_analyzer.py             ← Job Intelligence Report 生成（Layer 1 + Layer 2）
+│   ├── app_state/                   ← RequestContext、MetadataStore（SQLite）、WorkspacePaths
+│   ├── services/                    ← job / run / report / task / analysis service
+│   └── tools/                       ← CLI adapter（wrappers 的实际实现）
 │
-├── wrappers/                        ← agent 唯一合法执行入口（exec tool 调用）
+├── skills/                          ← OpenClaw skills（agent 工作模式）
+│   ├── career-research-orchestrator/SKILL.md
+│   ├── career-search-operator/SKILL.md
+│   ├── career-run-processor/SKILL.md
+│   └── career-strategy-reviewer/SKILL.md
+│
+├── protocols/                       ← 行为规范和领域知识（human-owned）
+│   ├── PROJECT_PROTOCOL.md
+│   ├── SEARCH_STRATEGY_PROTOCOL.md
+│   ├── OUTPUT_CONTRACT.md
+│   ├── DATA_POLICY.md
+│   └── WORKSTREAM_TAXONOMY.md
+│
+├── configs/                         ← human-owned 配置（agent 不可修改）
+│   ├── search_profiles.yaml
+│   ├── source_policy.yaml
+│   └── workstream_taxonomy.yaml
+│
+├── schemas/                         ← JSON Schema 定义
+│   ├── job_record.schema.json
+│   ├── job_report.schema.json       ← Job Intelligence Report（含 jd_hash / prompt_version / status）
+│   ├── fit_report.schema.json
+│   ├── task.schema.json
+│   ├── run_config.schema.json
+│   └── run_summary.schema.json
+│
+├── wrappers/                        ← agent 唯一合法执行入口
 │   ├── career_search_session        ← Search：session 生命周期
 │   ├── career_log_candidates        ← Search：候选入池
 │   ├── career_search_status         ← Search：查询 session 覆盖情况
@@ -157,74 +204,87 @@ career-openclaw/
 │   ├── career_validate_run          ← Process：验证 run output
 │   ├── career_query_jobs            ← Process/Query：查询已入库岗位
 │   ├── career_summarize_run         ← Process/Reflect：run summary
-│   ├── career_prepare_research      ← Research Notes：写 research_notes/<job_id>.md
-│   ├── career_analyze_roles         ← Analyze Roles：生成 role dossier reports + dossiers.jsonl
+│   ├── career_prepare_research      ← Research Notes：写 research context
+│   ├── career_analyze_roles         ← Analyze Roles：生成 Job Intelligence Reports
 │   ├── career_read_strategy         ← Reflect/Search：读取策略状态
 │   └── career_update_strategy       ← Reflect：写回策略 patch
 │
-├── db/                              ← 持久化数据库（agent 不能直接写）
-│   ├── jobs.jsonl                   ← 结构化岗位记录（append-only）
-│   ├── job_index.json               ← URL hash 去重索引
-│   ├── strategy_state.json          ← 跨 run 积累的搜索策略状态
-│   └── schema.json
+├── data/                            ← 运行时数据（gitignored）
+│   ├── app.sqlite                   ← SQLite WAL（12 张表）
+│   ├── global/                      ← 全局 job report artifacts
+│   └── workspaces/dev_default/
+│       ├── db/jobs.jsonl            ← 结构化岗位记录（append-only）
+│       ├── strategy_state.json
+│       └── runs/                    ← run artifacts
 │
-├── runs/                            ← 每次 run 的 artifacts（自动创建）
-│   ├── README.md
-│   └── <session_id>/
-│       ├── run_config.yaml
-│       ├── candidate_pool.jsonl         ← Search → Process 的边界文件
-│       ├── search_ledger.jsonl          ← 每次 query 的审计记录
-│       ├── coverage_report.md
-│       ├── jobs_structured.json
-│       ├── run_log.jsonl
-│       ├── run_summary.json / .md
-│       ├── validation_errors.jsonl      ← 出现时才有
-│       ├── skipped_results.jsonl        ← 出现时才有
-│       ├── raw_jds/                     ← 每个成功 fetch 的 JD 原文
-│       │   └── job_<hash>.txt
-│       ├── research_notes/              ← agent 写入的 web research context（Analyze Roles 输入）
-│       │   └── job_<hash>.md
-│       ├── role_dossier_reports/        ← Layer 1 narrative dossier report（Analyze Roles 输出）
-│       │   └── job_<hash>.md
-│       └── role_dossiers.jsonl          ← Layer 2 structured dossier records（append-only）
+├── db/                              ← LEGACY（只读，已迁移至 data/workspaces/）
+├── runs/                            ← LEGACY（只读，已迁移至 data/workspaces/）
 │
 ├── agent_work/                      ← agent 可写工作区
-│   ├── drafts/                      ← query JSON、candidates batch、strategy_state.md、strategy_patch_*.json
+│   ├── drafts/
 │   ├── inputs/
 │   └── outputs/
 │
-├── tests/
-│   ├── fixtures/
-│   ├── test_classifier.py
-│   ├── test_dedupe.py
-│   └── test_schema_validation.py
-│
+├── tests/                           ← 52 个测试
 ├── scripts/
-│   └── monitor_search.sh            ← 自动驱动 Search loop 到完成的 bash 脚本
-│
+│   └── monitor_search.sh
+├── infra/
+│   ├── docker-compose.yml           ← api + worker
+│   ├── Dockerfile.api
+│   └── Dockerfile.worker
 └── openclaw_integration/
-    └── exec-approvals.template.json ← 需合并到 ~/.openclaw/exec-approvals.json
+    └── exec-approvals.template.json
 ```
 
 ---
 
-## OpenClaw 如何与本项目交互
+## Web 平台页面
+
+| 路由 | 内容 |
+|---|---|
+| `/` | Dashboard — KPI 卡片、workstream coverage 柱状图、recent runs |
+| `/jobs` | Job 列表 — workstream/company 过滤、confidence badge |
+| `/jobs/[id]` | Job 详情 — skills、responsibilities、tasks、stakeholders、tools |
+| `/jobs/[id]/report` | Job Intelligence Report — Layer 1 narrative + Layer 2 structured (Tabs) |
+| `/runs` | Run 列表 — status、profile、timestamp、jobs count |
+| `/runs/[id]` | Run 详情 — discovery stats + run config；有 summary.md 时含 Summary tab |
+| `/auth` | Invite code 登录 |
+
+---
+
+## API 端点
+
+| Method | Path | 说明 |
+|---|---|---|
+| GET | `/healthz` | 健康检查 |
+| POST | `/auth/invite` | 兑换 invite code，写 session cookie |
+| GET | `/auth/me` | 当前用户/workspace |
+| GET | `/api/jobs` | 列出岗位（workstream / company / since 过滤）|
+| GET | `/api/jobs/{id}` | 岗位详情 |
+| GET | `/api/jobs/{id}/job-report` | 当前 active Job Intelligence Report |
+| POST | `/api/jobs/{id}/analyze` | 入队异步分析 → 202 + task_id |
+| GET | `/api/tasks/{id}` | 查询任务状态 |
+| GET | `/api/runs` | Run 列表 |
+| GET | `/api/runs/{id}` | Run 详情 |
+| GET | `/api/runs/{id}/summary` | Run summary markdown |
+
+---
+
+## OpenClaw Agent 交互边界
 
 ```
 OpenClaw agent
     │
-    ├── read tool  ──→  protocols/*.md, configs/*.yaml, AGENTS.md, runs/*/run_summary.md
+    ├── read tool  ──→  protocols/*.md, configs/*.yaml, AGENTS.md, data/workspaces/*/runs/*/run_summary.md
     ├── write tool ──→  agent_work/drafts/
-    ├── exec tool  ──→  ./wrappers/* (唯一合法执行入口)
+    ├── exec tool  ──→  ./wrappers/* （唯一合法执行入口）
     │                      │
-    │                      └──→  src/career_intelligence/ (Python pipeline)
+    │                      └──→  src/career_intelligence/ （Python pipeline）
     │                                  │
-    │                                  └──→  db/jobs.jsonl (只能通过 runner 写入)
+    │                                  └──→  data/workspaces/dev_default/db/jobs.jsonl
     │
     └── web_search / web_fetch  ──→  外部网站（Search 阶段）
 ```
-
-**agent 的边界：**
 
 | 可以 | 不可以 |
 |---|---|
@@ -235,41 +295,54 @@ OpenClaw agent
 
 ---
 
-## 当前状态（2026-06-10）
+## 当前状态（2026-06-12）
 
-- `db/jobs.jsonl` 已收录 **25 条**结构化岗位记录
-- 已完成 **16 次** run，Search / Process / Reflect 三阶段全部模块稳定运行
-- 已有 2 个搜索 profile：`market_risk_nyc`、`structured_credit_nyc`
+- `data/workspaces/dev_default/db/jobs.jsonl` 已收录 **~50 条**结构化岗位记录
+- 已完成 **16+ 次** run，五阶段 pipeline 全部模块稳定运行
+- **Phase 2 Web 平台 Sprint 0–3 全部完成**，52/52 tests pass，0 lints
+- Docker infra 已就绪（api + worker）
 
-**Workstream 覆盖情况：**
+### Phase 2 完成情况
+
+| Sprint | 内容 | 状态 |
+|---|---|---|
+| Sprint 0 | Terminology、Schema、RequestContext、MetadataStore（12 张表）、数据迁移 | ✅ 完成 |
+| Sprint 1 | Service layer（job / run / report / task service）、FastAPI read/write 端点 | ✅ 完成 |
+| Sprint 2 | Next.js 16 App Router UI（Dashboard、Jobs、Runs、Report viewer、Auth）| ✅ 完成 |
+| Sprint 3 | Analysis service（缓存/supersede）、Worker（异步生成）、Analyze button、Docker infra | ✅ 完成 |
+| Sprint 4+ | Candidate Fit Report、web 触发 search/process、生产 auth 加固 | 计划中 |
+
+### Workstream 覆盖情况
 
 | Workstream | 状态 |
 |---|---|
 | Market Risk / Exposure Monitoring | sufficient |
 | Valuation Control / IPV | sufficient |
 | Risk Analytics / Automation / Data | 有记录 |
-| Structured Credit / Credit Analytics | **missing — 下次优先** |
+| Structured Credit / Credit Analytics | 待补充 |
 | Product Control / P&L Reporting | 未覆盖 |
 | Model Risk / Model Validation | 未覆盖 |
 | Stress Testing / Scenario Analysis | 未覆盖 |
 | Treasury / ALM / Liquidity | 未覆盖 |
 
-**有效 source（来自 strategy_state.json）：**
+### 有效 source（来自 strategy_state）
+
 - `greenhouse.io` 直链（fetch 成功率高）
 - `builtinnyc.com`
 - `lever.co` job boards
 
-**已知失效 source：**
+### 已知失效 source
+
 - 大行 career page（GS、JPMorgan）— bot 保护 403
 - `swissre.com` — HTTP 403
-- `linkedin.com` aggregator 页 — 返回搜索结果页不是 JD 页
+- `linkedin.com` aggregator 页 — 返回搜索结果页而非 JD 页
 - `citi.com` job pages — 高 404 率
 
-**Pipeline 性能参考：**
+### Pipeline 性能参考
 
 | 指标 | 数值 |
 |---|---|
-| Fetch 成功率 | ~50%（取决于目标网站 bot 保护） |
+| Fetch 成功率 | ~50%（取决于目标网站 bot 保护）|
 | 成功 fetch 后结构化入库率 | 100% |
 
 ---
@@ -279,4 +352,5 @@ OpenClaw agent
 - **Search**: agent-led, ledger-constrained — 搜索策略给 agent，搜索状态强制记录
 - **Process**: tool-enforced — fetch → classify → extract → validate → save 全部在 runner 内部
 - **Reflect**: agent-driven — 诊断 failures，更新 strategy，让下一轮更聪明
-- **边界**: `candidate_pool.jsonl` 是 Search / Process 的唯一边界，agent 不能直接写 `db/jobs.jsonl`
+- **Job Intelligence Report**: `(job_id, jd_hash, prompt_version)` 三键全局缓存，支持 supersede
+- **边界**: `candidate_pool.jsonl` 是 Search / Process 的唯一边界，agent 不能直接写 `jobs.jsonl`

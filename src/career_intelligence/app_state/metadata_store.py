@@ -381,13 +381,19 @@ class MetadataStore:
         report_path: str | None = None,
         structured_path: str | None = None,
         sources_path: str | None = None,
+        job_report_id: str | None = None,
     ) -> str:
         """
         Insert a new active job report and supersede any older active report
         for the same (job_id, jd_hash, prompt_version).
-        Returns the new job_report_id.
+
+        job_report_id: if provided, use this ID instead of generating a new one.
+                       Useful when the caller pre-allocates the ID to determine
+                       the artifact directory path before insertion.
+        Returns the job_report_id (provided or generated).
         """
-        job_report_id = "rpt_" + uuid.uuid4().hex[:8]
+        if not job_report_id:
+            job_report_id = "rpt_" + uuid.uuid4().hex[:8]
         now = _now_iso()
         with self._conn() as conn:
             # Supersede previous active reports for this job + prompt version

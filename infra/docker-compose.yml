@@ -1,0 +1,39 @@
+version: "3.9"
+
+# Build context is always the repo root (one level up from infra/).
+# Run with:  docker compose -f infra/docker-compose.yml up --build
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../data:/app/data       # shared runtime data (SQLite + job artifacts)
+    env_file:
+      - ../.env
+    environment:
+      - DEV_MODE=0
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.worker
+    volumes:
+      - ../data:/app/data       # same data volume as api
+    env_file:
+      - ../.env
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      replicas: 1               # task_queue is single-worker; do not scale up

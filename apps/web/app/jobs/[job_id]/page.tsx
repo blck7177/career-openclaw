@@ -2,6 +2,7 @@ import { getJob, type Job } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { AnalyzeButton } from "@/components/analyze-button";
 import Link from "next/link";
 import { ArrowLeft, ExternalLink, FileText } from "lucide-react";
 import { notFound } from "next/navigation";
@@ -85,12 +86,13 @@ export default async function JobDetailPage({ params }: PageProps) {
           </div>
         </div>
 
-        {/* Report link */}
-        <div className="flex gap-2 items-center">
+        {/* Report link + Analyze button */}
+        <div className="flex gap-3 items-center">
           <Link href={`/jobs/${job.job_id}/report`}
                 className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
             <FileText size={14} /> View Job Intelligence Report
           </Link>
+          <AnalyzeButton jobId={job.job_id} />
         </div>
 
         {/* Workstreams */}

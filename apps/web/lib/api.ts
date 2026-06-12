@@ -144,6 +144,35 @@ export async function getJobReport(jobId: string): Promise<JobReport> {
   return req<JobReport>(`/api/jobs/${jobId}/job-report`);
 }
 
+export async function analyzeJob(jobId: string, force = false): Promise<{ task_id: string }> {
+  return req<{ task_id: string }>(`/api/jobs/${jobId}/analyze?force=${force}`, {
+    method: "POST",
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Tasks
+// ---------------------------------------------------------------------------
+
+export type TaskStatus = "pending" | "running" | "completed" | "failed";
+
+export interface Task {
+  task_id: string;
+  workspace_id: string;
+  task_type: string;
+  status: TaskStatus;
+  payload: Record<string, unknown>;
+  result: Record<string, unknown> | null;
+  error_message: string | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+}
+
+export async function getTask(taskId: string): Promise<Task> {
+  return req<Task>(`/api/tasks/${taskId}`);
+}
+
 // ---------------------------------------------------------------------------
 // Runs
 // ---------------------------------------------------------------------------

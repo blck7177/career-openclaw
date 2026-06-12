@@ -17,7 +17,7 @@ from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from apps.api.routes import auth, jobs, reports, runs
+from apps.api.routes import auth, jobs, reports, runs, tasks
 from career_intelligence.app_state.metadata_store import MetadataStore
 from career_intelligence.app_state.workspace_paths import get_data_root
 
@@ -41,7 +41,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(
     title="Career OpenClaw API",
-    description="Job intelligence backend — read-only in Sprint 1",
+    description="Job intelligence backend — Sprint 3: async analysis",
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -58,6 +58,7 @@ app.include_router(auth.router)
 app.include_router(jobs.router)
 app.include_router(runs.router)
 app.include_router(reports.router)
+app.include_router(tasks.router)
 
 
 @app.get("/healthz", tags=["ops"])

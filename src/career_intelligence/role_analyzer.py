@@ -1,22 +1,22 @@
 """
-Role Analyzer — two-layer role dossier generation.
+Role Analyzer — two-layer Job Intelligence Report generation.
 
-Layer 1: Narrative Role Dossier Report
+Layer 1: Narrative Job Intelligence Report
   - Unconstrained reasoning: what the role is, what business problem it solves,
     what underlying capabilities the JD implies.
   - Output: markdown report (English).
 
-Layer 2: Structured Role Dossier Schema
+Layer 2: Structured Job Report Schema
   - Canonicalizes Layer 1 into queryable JSON.
   - Does NOT re-analyze the JD. Uses Layer 1 as primary source.
-  - Output: dict matching role_dossier.schema.json.
+  - Output: dict matching job_report.schema.json.
 
 Usage:
-    from career_intelligence.role_analyzer import analyze_role
+    from career_intelligence.role_analyzer import analyze_role, PROMPT_VERSION
 
-    report_md, dossier = analyze_role(
+    report_md, structured_report, prompt_version = analyze_role(
         jd_text=...,
-        job_record=...,       # dict from jobs_structured.json
+        job_record=...,       # dict from jobs.jsonl
         taxonomy=...,         # list of workstream dicts from workstream_taxonomy.yaml
         llm_client=...,
     )
@@ -27,10 +27,10 @@ from __future__ import annotations
 import json
 from typing import Any
 
-ANALYSIS_VERSION = "0.1.0"
+PROMPT_VERSION = "0.2.0"
 
 # ---------------------------------------------------------------------------
-# Layer 1: Narrative Role Dossier Report
+# Layer 1: Narrative Job Intelligence Report
 # ---------------------------------------------------------------------------
 
 _LAYER1_SYSTEM_PROMPT = """\
@@ -160,7 +160,7 @@ When evidence is weak, say so explicitly.
 
 ## Output Format
 
-# Role Dossier Report
+# Job Intelligence Report
 
 ## 1. Business / Organizational Context
 
@@ -351,11 +351,11 @@ If research does not change the interpretation of a section, say so explicitly r
 """
 
 # ---------------------------------------------------------------------------
-# Layer 2: Structured Role Dossier Schema Filler
+# Layer 2: Structured Job Report Schema Filler
 # ---------------------------------------------------------------------------
 
 _LAYER2_SYSTEM_PROMPT = """\
-You are a structured data extractor. A narrative Role Dossier Report has already been written (Layer 1 analysis).
+You are a structured data extractor. A narrative Job Intelligence Report has already been written (Layer 1 analysis).
 Your task is to canonicalize that report into a JSON schema.
 
 Rules:
@@ -373,7 +373,7 @@ _LAYER2_USER_TEMPLATE = """\
 === WORKSTREAM TAXONOMY LABELS (use exact strings for workstream fields) ===
 {taxonomy_labels}
 
-=== LAYER 1 ROLE DOSSIER REPORT ===
+=== LAYER 1 JOB INTELLIGENCE REPORT ===
 {report_md}
 
 === ORIGINAL JOB DESCRIPTION EXCERPT (reference only — use to resolve ambiguity, not to re-reason) ===
@@ -438,13 +438,13 @@ def analyze_role(
     taxonomy: list[dict[str, Any]],
     llm_client,
     research_notes: str = "",
-) -> tuple[str, dict[str, Any]]:
+) -> tuple[str, dict[str, Any], str]:
     """
-    Run two-layer role analysis.
+    Run two-layer Job Intelligence Report generation.
 
     Args:
         jd_text:        Raw job description text.
-        job_record:     Dict from jobs_structured.json (title, company, location, etc.).
+        job_record:     Dict from jobs.jsonl (title, company, location, etc.).
         taxonomy:       List of workstream dicts from workstream_taxonomy.yaml.
         llm_client:     LLM client instance.
         research_notes: Optional pre-research markdown (company background, team context).
@@ -453,9 +453,10 @@ def analyze_role(
                         When empty, the Layer 1 prompt is identical to the no-research path.
 
     Returns:
-        (report_md, dossier_dict)
-        report_md    — Layer 1 narrative markdown report (English)
-        dossier_dict — Layer 2 structured dossier (matches role_dossier.schema.json)
+        (report_md, structured_report, prompt_version)
+        report_md        — Layer 1 narrative markdown report (English)
+        structured_report — Layer 2 structured report (matches job_report.schema.json)
+        prompt_version   — PROMPT_VERSION constant, for use as cache key
 
     Raises:
         RuntimeError if LLM client is None.
@@ -469,9 +470,9 @@ def analyze_role(
     report_md = _generate_role_report(
         jd_text, job_record, taxonomy_labels, llm_client, research_notes
     )
-    dossier = _fill_dossier_schema(jd_text, report_md, taxonomy_labels, llm_client)
+    structured_report = _fill_structured_report(jd_text, report_md, taxonomy_labels, llm_client)
 
-    return report_md, dossier
+    return report_md, structured_report, PROMPT_VERSION
 
 
 # ---------------------------------------------------------------------------
@@ -527,7 +528,7 @@ def _generate_role_report(
 # Layer 2 implementation
 # ---------------------------------------------------------------------------
 
-def _fill_dossier_schema(
+def _fill_structured_report(
     jd_text: str,
     report_md: str,
     taxonomy_labels: str,
@@ -553,8 +554,8 @@ def _fill_dossier_schema(
                 # Take the content inside the first code block
                 raw = parts[1].lstrip("json").strip() if len(parts) >= 3 else raw
 
-            dossier = json.loads(raw)
-            return _normalize_dossier(dossier)
+            structured = json.loads(raw)
+            return _normalize_structured_report(structured)
 
         except json.JSONDecodeError as e:
             if attempt == 2:
@@ -568,7 +569,7 @@ def _fill_dossier_schema(
     raise RuntimeError("Layer 2 schema filling failed.")
 
 
-def _normalize_dossier(data: dict[str, Any]) -> dict[str, Any]:
+def _normalize_structured_report(data: dict[str, Any]) -> dict[str, Any]:
     """Ensure required fields exist with sensible defaults."""
     # business_context
     bc = data.get("business_context")
