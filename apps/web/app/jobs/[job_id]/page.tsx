@@ -1,10 +1,11 @@
 import { getJob, type Job } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { AnalyzeButton } from "@/components/analyze-button";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink, FileText } from "lucide-react";
+import { ArrowLeft, ExternalLink, FileText, Target } from "lucide-react";
 import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -86,13 +87,19 @@ export default async function JobDetailPage({ params }: PageProps) {
           </div>
         </div>
 
-        {/* Report link + Analyze button */}
-        <div className="flex gap-3 items-center">
+        {/* Report link + action buttons */}
+        <div className="flex gap-3 items-center flex-wrap">
           <Link href={`/jobs/${job.job_id}/report`}
                 className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
             <FileText size={14} /> View Job Intelligence Report
           </Link>
           <AnalyzeButton jobId={job.job_id} />
+          <Link href={`/jobs/${job.job_id}/fit`}>
+            <Button size="sm" variant="outline">
+              <Target size={14} className="mr-1.5" />
+              Fit Analysis
+            </Button>
+          </Link>
         </div>
 
         {/* Workstreams */}

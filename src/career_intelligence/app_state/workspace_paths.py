@@ -118,6 +118,10 @@ class WorkspacePaths:
     def profiles_dir(self) -> Path:
         return self.root / "profiles"
 
+    def candidate_profile_path(self, candidate_profile_id: str) -> Path:
+        """Path to the JSON file for a specific candidate profile."""
+        return self.profiles_dir / f"{candidate_profile_id}.json"
+
     # -------------------------------------------------------------------------
     # Reports (fit reports, workspace-scoped)
     # -------------------------------------------------------------------------
@@ -128,6 +132,14 @@ class WorkspacePaths:
 
     def fit_report_dir(self, fit_report_id: str) -> Path:
         return self.reports_dir / fit_report_id
+
+    def fit_report_narrative(self, fit_report_id: str) -> Path:
+        """Path to the narrative markdown for a specific fit report."""
+        return self.fit_report_dir(fit_report_id) / "fit_report.md"
+
+    def fit_report_structured(self, fit_report_id: str) -> Path:
+        """Path to the structured JSON for a specific fit report."""
+        return self.fit_report_dir(fit_report_id) / "structured.json"
 
     # -------------------------------------------------------------------------
     # Helpers

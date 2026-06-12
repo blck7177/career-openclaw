@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Briefcase, LayoutDashboard, PlayCircle } from "lucide-react";
+import { Briefcase, LayoutDashboard, PlayCircle, UserCircle } from "lucide-react";
 
 const links = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/jobs", label: "Jobs", icon: Briefcase },
   { href: "/runs", label: "Runs", icon: PlayCircle },
+  { href: "/profile", label: "Profile", icon: UserCircle },
 ];
 
 export function Nav() {
@@ -47,7 +48,7 @@ export function Nav() {
 
       {/* Footer */}
       <div className="px-5 py-4 border-t border-white/10">
-        <div className="text-xs text-white/30">Sprint 2 · Read-only</div>
+        <div className="text-xs text-white/30">Sprint 4-lite · Fit Reports</div>
       </div>
     </aside>
   );

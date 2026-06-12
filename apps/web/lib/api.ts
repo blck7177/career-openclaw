@@ -83,11 +83,36 @@ export interface AuthUser {
 // Request helper
 // ---------------------------------------------------------------------------
 
+/**
+ * Base auth headers for every API request.
+ *
+ * Development: adds X-Dev-Context so the FastAPI DEV_MODE bypass applies to
+ * both browser (client) requests AND Next.js server-side (SSR/RSC) fetches,
+ * without needing "next/headers" in this file.
+ *
+ * Keeping this file free of "next/headers" is critical: api.ts is imported by
+ * Client Components (e.g. fit-button, analyze-button), and Turbopack rejects
+ * server-only modules in client bundles — even inside dynamic imports.
+ *
+ * Production SSR: Server Components that need to forward the session cookie
+ * should import { serverAuthHeaders } from "@/lib/server-auth" (a server-only
+ * module) and pass the result as extraHeaders to the individual fetch calls.
+ */
+function authHeaders(): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    ...(process.env.NODE_ENV === "development" ? { "X-Dev-Context": "dev" } : {}),
+  };
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
     ...init,
+    headers: {
+      ...authHeaders(),
+      ...(init?.headers as Record<string, string> | undefined),
+    },
   });
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
@@ -112,7 +137,11 @@ export async function redeemInvite(code: string): Promise<AuthUser> {
 }
 
 export async function logout(): Promise<void> {
-  await fetch(`${BASE}/auth/logout`, { method: "DELETE", credentials: "include" });
+  await fetch(`${BASE}/auth/logout`, {
+    method: "DELETE",
+    credentials: "include",
+    headers: authHeaders(),
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -186,7 +215,116 @@ export async function getRun(runId: string): Promise<RunDetail> {
 }
 
 export async function getRunSummaryMd(runId: string): Promise<string> {
-  const res = await fetch(`${BASE}/api/runs/${runId}/summary`, { credentials: "include" });
+  const res = await fetch(`${BASE}/api/runs/${runId}/summary`, {
+    credentials: "include",
+    headers: authHeaders(),
+  });
   if (!res.ok) throw Object.assign(new Error("Not found"), { status: res.status });
   return res.text();
+}
+
+// ---------------------------------------------------------------------------
+// Candidate Profiles
+// ---------------------------------------------------------------------------
+
+export interface RepresentativeProject {
+  title?: string;
+  description: string;
+  skills_used: string[];
+  quantified_impact?: string;
+}
+
+export interface CandidateProfile {
+  candidate_profile_id: string;
+  workspace_id: string;
+  created_at: string;
+  profile_version: string;
+  display_name?: string;
+  years_experience: number;
+  current_background: string;
+  domain_experience: string[];
+  technical_skills: string[];
+  analytical_methods: string[];
+  finance_domains: string[];
+  tools: string[];
+  representative_projects: RepresentativeProject[];
+  target_workstreams?: string[];
+  target_roles?: string[];
+  constraints?: string;
+}
+
+export type CreateProfileInput = Omit<CandidateProfile, "candidate_profile_id" | "workspace_id" | "created_at" | "profile_version">;
+
+export async function createProfile(data: CreateProfileInput): Promise<CandidateProfile> {
+  return req<CandidateProfile>("/api/profiles", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function listProfiles(): Promise<CandidateProfile[]> {
+  return req<CandidateProfile[]>("/api/profiles");
+}
+
+export async function getProfile(profileId: string): Promise<CandidateProfile> {
+  return req<CandidateProfile>(`/api/profiles/${profileId}`);
+}
+
+// ---------------------------------------------------------------------------
+// Fit Reports
+// ---------------------------------------------------------------------------
+
+export interface FitReport {
+  fit_report_id: string;
+  workspace_id: string;
+  job_id: string;
+  job_report_id: string;
+  candidate_profile_id: string;
+  analyzed_at: string;
+  prompt_version: string;
+  overall_match_score: number;
+  match_summary: string;
+  strong_matches: Array<{ demand: string; evidence: string }>;
+  partial_matches: Array<{ demand: string; gap_description: string }>;
+  gaps: Array<{ demand: string; gap_description: string; severity: string }>;
+  risk_flags: string[];
+  interview_talking_points: string[];
+  resume_rewrite_strategy: {
+    positioning: string;
+    keywords_to_add: string[];
+    bullets_to_reframe: unknown[];
+    evidence_to_surface: string[];
+  };
+  recommended_next_action: string;
+}
+
+export interface FitReportSummary {
+  fit_report_id: string;
+  candidate_profile_id: string;
+  job_report_id: string;
+  created_at: string;
+  overall_match_score: number | null;
+}
+
+export async function enqueueFitReport(
+  jobId: string,
+  profileId: string,
+  force = false,
+): Promise<{ task_id: string }> {
+  return req<{ task_id: string }>(`/api/jobs/${jobId}/fit`, {
+    method: "POST",
+    body: JSON.stringify({ profile_id: profileId, force }),
+  });
+}
+
+export async function getFitReport(
+  fitReportId: string,
+): Promise<{ structured: FitReport; narrative_md: string }> {
+  return req<{ structured: FitReport; narrative_md: string }>(
+    `/api/fit-reports/${fitReportId}`,
+  );
+}
+
+export async function listJobFitReports(jobId: string): Promise<FitReportSummary[]> {
+  return req<FitReportSummary[]>(`/api/jobs/${jobId}/fit-reports`);
 }

@@ -23,6 +23,7 @@ from career_intelligence.app_state.metadata_store import MetadataStore
 from career_intelligence.app_state.workspace_paths import get_data_root
 from career_intelligence.services import task_service
 
+from apps.worker.handlers.fit_report import handle_fit_report
 from apps.worker.handlers.job_report import handle_job_report
 
 logging.basicConfig(
@@ -37,6 +38,7 @@ POLL_INTERVAL_S = 5
 
 HANDLERS = {
     "job_report": handle_job_report,
+    "fit_report": handle_fit_report,
 }
 
 

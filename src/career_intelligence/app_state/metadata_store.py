@@ -208,6 +208,8 @@ CREATE TABLE IF NOT EXISTS fit_reports (
     job_report_id           TEXT REFERENCES job_reports(job_report_id),
     candidate_profile_id    TEXT REFERENCES candidate_profiles(candidate_profile_id),
     resume_version_id       TEXT REFERENCES resume_versions(resume_version_id),
+    profile_hash            TEXT,       -- md5[:16] of serialized candidate profile JSON
+    prompt_version          TEXT,       -- FIT_PROMPT_VERSION at generation time
     report_path             TEXT,       -- path to fit_report narrative
     structured_path         TEXT,       -- path to fit_report structured JSON
     created_at              TEXT NOT NULL
@@ -216,6 +218,20 @@ CREATE TABLE IF NOT EXISTS fit_reports (
 CREATE INDEX IF NOT EXISTS idx_fit_reports_workspace ON fit_reports(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_fit_reports_job ON fit_reports(job_id);
 """
+
+# ---------------------------------------------------------------------------
+# Additive migrations (applied after DDL on every init_schema call)
+# ---------------------------------------------------------------------------
+# Only add new columns — never drop or rename. Each migration is safe to
+# run multiple times: "duplicate column name" OperationalErrors are swallowed;
+# all other errors propagate.
+_MIGRATIONS = [
+    "ALTER TABLE fit_reports ADD COLUMN profile_hash TEXT",
+    "ALTER TABLE fit_reports ADD COLUMN prompt_version TEXT",
+    # Cache key index must come after the column migrations above
+    "CREATE INDEX IF NOT EXISTS idx_fit_reports_cache_key"
+    " ON fit_reports(job_id, job_report_id, candidate_profile_id, profile_hash, prompt_version)",
+]
 
 
 # ---------------------------------------------------------------------------
@@ -256,12 +272,18 @@ class MetadataStore:
 
     def init_schema(self) -> None:
         """
-        Create all tables and indexes if they don't exist.
-        Safe to call on every startup — fully idempotent.
+        Create all tables and indexes if they don't exist, then apply additive
+        column migrations.  Safe to call on every startup — fully idempotent.
         """
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with self._conn() as conn:
             conn.executescript(_DDL)
+            for migration in _MIGRATIONS:
+                try:
+                    conn.execute(migration)
+                except sqlite3.OperationalError as exc:
+                    if "duplicate column name" not in str(exc).lower():
+                        raise
 
     # -------------------------------------------------------------------------
     # Workspace helpers
@@ -560,3 +582,192 @@ class MetadataStore:
         """
         self.get_or_create_workspace("dev_default", name="Local Dev Workspace")
         self.get_or_create_user("dev_user", "dev_default", display_name="Dev User")
+
+    # -------------------------------------------------------------------------
+    # Candidate profile helpers
+    # -------------------------------------------------------------------------
+
+    def insert_candidate_profile(
+        self,
+        workspace_id: str,
+        profile_path: str,
+        candidate_profile_id: str | None = None,
+    ) -> str:
+        """
+        Insert a new candidate profile record.  Returns candidate_profile_id.
+
+        candidate_profile_id: pre-allocated by the caller (recommended) so the
+            filesystem path and DB row stay in sync.  Generated if not provided.
+        """
+        if not candidate_profile_id:
+            candidate_profile_id = "prof_" + uuid.uuid4().hex[:10]
+        now = _now_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO candidate_profiles
+                    (candidate_profile_id, workspace_id, profile_path, created_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (candidate_profile_id, workspace_id, profile_path, now),
+            )
+        return candidate_profile_id
+
+    def get_candidate_profile(
+        self, candidate_profile_id: str
+    ) -> dict[str, Any] | None:
+        """Return the candidate_profiles row or None."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM candidate_profiles WHERE candidate_profile_id = ?",
+                (candidate_profile_id,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def list_candidate_profiles(
+        self, workspace_id: str
+    ) -> list[dict[str, Any]]:
+        """Return all profiles for a workspace, newest first."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM candidate_profiles
+                WHERE workspace_id = ?
+                ORDER BY created_at DESC
+                """,
+                (workspace_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    # -------------------------------------------------------------------------
+    # Fit report helpers
+    # -------------------------------------------------------------------------
+
+    def insert_fit_report(
+        self,
+        workspace_id: str,
+        job_id: str,
+        job_report_id: str,
+        candidate_profile_id: str,
+        profile_hash: str,
+        prompt_version: str,
+        report_path: str | None = None,
+        structured_path: str | None = None,
+        resume_version_id: str | None = None,
+        fit_report_id: str | None = None,
+    ) -> str:
+        """
+        Insert a new fit report record.  Returns fit_report_id.
+
+        fit_report_id: pre-allocate before writing filesystem artifacts so the
+            directory name and DB row match.  Generated if not provided.
+        """
+        if not fit_report_id:
+            fit_report_id = "fit_" + uuid.uuid4().hex[:8]
+        now = _now_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO fit_reports
+                    (fit_report_id, workspace_id, job_id, job_report_id,
+                     candidate_profile_id, resume_version_id,
+                     profile_hash, prompt_version,
+                     report_path, structured_path, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    fit_report_id, workspace_id, job_id, job_report_id,
+                    candidate_profile_id, resume_version_id,
+                    profile_hash, prompt_version,
+                    report_path, structured_path, now,
+                ),
+            )
+        return fit_report_id
+
+    def get_active_fit_report(
+        self,
+        job_id: str,
+        job_report_id: str,
+        candidate_profile_id: str,
+        profile_hash: str,
+        prompt_version: str,
+    ) -> dict[str, Any] | None:
+        """
+        Cache lookup: return an existing fit report that was generated with
+        exactly these inputs, or None.
+
+        Cache key: (job_id, job_report_id, candidate_profile_id, profile_hash, prompt_version)
+        """
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM fit_reports
+                WHERE job_id = ?
+                  AND job_report_id = ?
+                  AND candidate_profile_id = ?
+                  AND profile_hash = ?
+                  AND prompt_version = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (job_id, job_report_id, candidate_profile_id, profile_hash, prompt_version),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def get_fit_report(self, fit_report_id: str) -> dict[str, Any] | None:
+        """Return a fit_reports row or None."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM fit_reports WHERE fit_report_id = ?",
+                (fit_report_id,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def list_fit_reports(
+        self,
+        workspace_id: str,
+        job_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """List fit reports for a workspace, optionally filtered by job_id, newest first."""
+        with self._conn() as conn:
+            if job_id:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM fit_reports
+                    WHERE workspace_id = ? AND job_id = ?
+                    ORDER BY created_at DESC
+                    """,
+                    (workspace_id, job_id),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM fit_reports
+                    WHERE workspace_id = ?
+                    ORDER BY created_at DESC
+                    """,
+                    (workspace_id,),
+                ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_latest_active_job_report(self, job_id: str) -> dict[str, Any] | None:
+        """
+        Return the most recently created active Job Intelligence Report for a
+        job, or None.
+
+        Used by match_service as a pre-flight check: "has this job been analyzed?"
+        Semantically different from get_active_job_report() which requires an
+        exact (jd_hash, prompt_version) cache key for Sprint-3 cache logic.
+        Do NOT use this method for Sprint-3 cache lookups.
+        """
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM job_reports
+                WHERE job_id = ? AND status = 'active'
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (job_id,),
+            ).fetchone()
+        return dict(row) if row else None

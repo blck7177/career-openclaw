@@ -10,8 +10,8 @@
     "job_id",
     "job_report_id",
     "candidate_profile_id",
-    "resume_version_id",
     "analyzed_at",
+    "prompt_version",
     "overall_match_score",
     "strong_matches",
     "partial_matches",
@@ -25,8 +25,9 @@
     "job_id": { "type": "string", "pattern": "^job_[a-f0-9]{8}$" },
     "job_report_id": { "type": "string" },
     "candidate_profile_id": { "type": "string" },
-    "resume_version_id": { "type": "string" },
+    "resume_version_id": { "type": "string", "description": "Optional — only present when report was generated with a resume. Reserved for Sprint 5." },
     "analyzed_at": { "type": "string", "format": "date-time" },
+    "prompt_version": { "type": "string", "description": "FIT_PROMPT_VERSION at generation time. Part of the cache key." },
 
     "overall_match_score": {
       "type": "integer",
@@ -111,6 +112,11 @@
       }
     },
 
+    "interview_talking_points": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "2-4 concrete angles the candidate should prepare to discuss in interviews for this role."
+    },
     "recommended_next_action": {
       "type": "string",
       "description": "Concrete next step: apply now, revise resume first, get more context, skip this role, etc."
