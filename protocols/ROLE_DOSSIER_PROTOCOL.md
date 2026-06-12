@@ -104,33 +104,43 @@ role_research_tasks.jsonl           所有 job 的搜索任务汇总（方便 ag
 
 文件路径：`runs/<run_id>/research_notes/<job_id>.md`
 
-格式（固定结构，方便 Layer 1 LLM 解析）：
+**格式（强制结构）：**
 
 ```markdown
 # Research Notes — <company> (<job_id>)
 Generated: <YYYY-MM-DD>
 
-## Company Overview
-<2-3 paragraphs: what the company does, business model, key products>
-Source: <URL>
+## Role-Specific Research Questions
+(从 role_research_plans/<job_id>.json 的 context_gaps 复制，作为本次 research 的聚焦目标)
+- <question 1>
+- <question 2>
 
-## Relevant Division / Team
-<what the specific team or department does, if findable>
-Source: <URL>
+## Source Findings
 
-## Business Model / Domain Context
-<how this role connects to the company's revenue model or operational structure>
-Source: <URL>
+### Source 1
+- URL: <url>
+- Source type: company_website | press_release | job_board | news | linkedin | other
+- Relevant finding: <具体发现，只写 web_fetch 确认的内容>
+- Related JD signal: <这条 finding 对应 JD 里的哪个词/职责/团队名称>
+- What this helps interpret: <它帮助解释了什么>
+- Evidence strength: high | medium | low
+- Boundary: <它不能证明什么>
 
-## Research Gaps
-<what you could not find or confirm — be honest about limitations>
+### Source 2
+...（最多 3 条 source）
+
+## Synthesis for Role Dossier
+- What research clarifies about the JD: <具体说明>
+- What research does NOT clarify: <具体说明>
+- Remaining uncertainty: <还有哪些问题没搜到>
 ```
 
-**注意：**
-- research notes 是辅助层，JD 仍是主要信息来源
-- 只写从 web_fetch 确认的内容，不要写"可能是"等推测性描述（推测性内容留给 Layer 1 LLM 处理）
-- 如果某家公司信息很少（刚融资的 startup、非知名公司），直接在 Research Gaps 里说明，不要强行填充
-- `role_research_plans/<job_id>.json` 中的 `context_gaps` 列出了这个 job 最需要 research 补充的问题，优先针对这些问题搜索
+**格式规则：**
+- 每条 finding 必须填写 `Related JD signal` 和 `What this helps interpret`，否则 Layer 1 LLM 无法有效融合 research 和 JD
+- `Relevant finding` 只写从 web_fetch 确认的内容，不写推测（推测性内容留给 Layer 1 LLM 处理）
+- 如果某家公司信息很少（刚融资的 startup、非知名公司），Source Findings 写 1 条，然后在 Synthesis 里如实说明 Research Gaps
+- `Boundary` 字段必须填写——它防止 Layer 1 LLM 过度引申 research 内容
+- 最多 3 条 source；宁可少而精，不要堆砌泛化的公司背景
 
 ---
 

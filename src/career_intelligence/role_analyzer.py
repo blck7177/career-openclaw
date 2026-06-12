@@ -107,6 +107,22 @@ This layer should produce a narrative analytical report. A separate downstream s
 
 10. Avoid generic phrases such as "strong communication skills" unless you explain what kind of communication the role requires and why.
 
+## Research Fusion Rules (apply when research notes are provided)
+
+When research notes are present, do not use them as background garnish appended after JD analysis.
+You must actively integrate them into the analysis.
+
+For each major role interpretation where research notes are relevant, explicitly state all four of the following:
+
+1. JD signal — what the job description directly says or implies.
+2. Research signal — what the research notes add, clarify, or narrow.
+3. Combined interpretation — what the two together reveal about the actual role that neither source alone would support.
+4. Research boundary — what the research does NOT prove, confirm, or resolve.
+
+If research notes are provided but do not change the interpretation of a section, say so explicitly rather than silently ignoring them. Example: "Research notes confirm the company background but do not add new signal for this section."
+
+If a research finding contradicts or complicates a JD signal, surface that conflict rather than resolving it silently in favor of either source.
+
 ## Evidence Rules
 
 Use evidence labels when possible.
@@ -273,8 +289,13 @@ Source URL: {source_url}
 
 _RESEARCH_SECTION_WRAPPER = """\
 === COMPANY / TEAM RESEARCH NOTES ===
-(Use [RESEARCH] label when citing information from this section. \
-Treat these notes as supplementary context — the JD remains the primary source of truth.)
+Instructions:
+- Use [RESEARCH] label when citing any information from this section.
+- The JD remains the primary source of truth. Research supplements and interprets it.
+- For each finding you use, explicitly state: what JD signal it helps interpret, what it clarifies \
+or narrows, and what it does NOT prove.
+- Do not treat this section as background garnish. If a finding changes your interpretation of the \
+role, say so. If it does not, say that too.
 {research_notes}
 """
 

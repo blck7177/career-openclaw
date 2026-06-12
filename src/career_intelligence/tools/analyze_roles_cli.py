@@ -41,9 +41,19 @@ ANALYSIS_VERSION = "0.1.0"
     default=None,
     help=(
         "Directory containing pre-research markdown files named <job_id>.md. "
-        "When a matching file is found for a job, its content is included in the "
-        "Layer 1 prompt as company/team research context. "
+        "When provided, jobs without a matching notes file are skipped by default "
+        "(use --allow-missing-research to override). "
         "Tip: use runs/<run_id>/research_notes/ as the convention."
+    ),
+)
+@click.option(
+    "--allow-missing-research",
+    is_flag=True,
+    default=False,
+    help=(
+        "When --research-notes-dir is set, allow jobs without a matching notes file "
+        "to proceed without research context instead of being skipped. "
+        "By default, jobs missing notes are tagged skipped_missing_research."
     ),
 )
 def main(
@@ -52,6 +62,7 @@ def main(
     job_ids: str | None,
     dry_run: bool,
     research_notes_dir: str | None,
+    allow_missing_research: bool,
 ) -> None:
     """Generate Role Dossier reports for jobs from a completed discovery run."""
     from dotenv import load_dotenv  # type: ignore
@@ -108,14 +119,26 @@ def main(
 
     if dry_run:
         dry_run_jobs = []
+        would_skip_missing = 0
         for j in selected:
             jid = j["job_id"]
             has_notes = notes_dir is not None and (notes_dir / f"{jid}.md").exists()
-            dry_run_jobs.append({"job_id": jid, "research_notes": has_notes})
-        click.echo(json.dumps({
-            "would_analyze": len(selected),
+            missing_blocked = notes_dir is not None and not has_notes and not allow_missing_research
+            dry_run_jobs.append({
+                "job_id": jid,
+                "research_notes": has_notes,
+                "would_skip_missing_research": missing_blocked,
+            })
+            if missing_blocked:
+                would_skip_missing += 1
+        result: dict = {
+            "would_analyze": len(selected) - would_skip_missing,
+            "would_skip_missing_research": would_skip_missing,
             "jobs": dry_run_jobs,
-        }, indent=2))
+        }
+        if would_skip_missing and not allow_missing_research:
+            result["tip"] = "Pass --allow-missing-research to analyze jobs without notes anyway."
+        click.echo(json.dumps(result, indent=2))
         return
 
     if not selected:
@@ -140,7 +163,8 @@ def main(
     reports_dir.mkdir(exist_ok=True)
     dossiers_path = run_dir / "role_dossiers.jsonl"
 
-    stats = {"total": len(selected), "succeeded": 0, "failed": 0, "skipped": 0}
+    stats = {"total": len(selected), "succeeded": 0, "failed": 0, "skipped": 0,
+             "skipped_missing_research": 0}
 
     from career_intelligence.role_analyzer import analyze_role  # type: ignore
 
@@ -155,8 +179,19 @@ def main(
             stats["skipped"] += 1
             continue
 
-        # Load research notes if available
+        # Coverage gate: if research-notes-dir was given but this job has no notes,
+        # skip unless --allow-missing-research is set.
         research_notes = _load_research_notes(notes_dir, job_id)
+        if notes_dir is not None and not research_notes and not allow_missing_research:
+            click.echo(
+                f"[SKIP] {job_id}: no research notes found in {notes_dir} "
+                f"(pass --allow-missing-research to analyze without notes)",
+                err=True,
+            )
+            stats["skipped_missing_research"] += 1
+            stats["skipped"] += 1
+            continue
+
         notes_tag = " [+research]" if research_notes else ""
         click.echo(f"[ANALYZING] {job_id}: {title} @ {company}{notes_tag}", err=True)
 

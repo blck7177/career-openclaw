@@ -23,7 +23,7 @@ from .classifier import classify_workstream
 from .connectors.connector_router import load_company_boards, route as connector_route
 from .extractor import extract_fields
 from .fetcher import FetchResult, save_raw_jd
-from .researcher import research_role
+from .llm_role_context import get_llm_role_context
 from .run_logger import log_step, log_validation_error, write_jobs_structured, write_run_summary
 from .storage_jsonl import upsert_job
 from .validator import validate_record
@@ -152,8 +152,8 @@ def run_processing_pipeline(
 
         jd_text = fetch_result.text
 
-        # Step 2: Research
-        role_context_obj = research_role(company, title, llm_client)
+        # Step 2: LLM role context (training-knowledge hint for extraction, not web research)
+        role_context_obj = get_llm_role_context(company, title, llm_client)
         role_context_str = role_context_obj.company_description
         log_step(run_dir, "research_done", job_id, "success")
 

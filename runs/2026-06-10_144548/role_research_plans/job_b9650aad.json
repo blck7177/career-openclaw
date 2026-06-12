@@ -1,0 +1,38 @@
+{
+  "job_id": "job_b9650aad",
+  "run_id": "2026-06-10_144548",
+  "title": "Solutions Engineer - Risk Analytics",
+  "company": "Clearwater Analytics (CWAN)",
+  "division_or_business_line": "",
+  "org_name_used": "Americas Solution Engineering Team",
+  "org_name_source": "inferred_team_context_llm",
+  "generated_at": "2026-06-12T01:15:19.048319+00:00",
+  "search_queries": [
+    {
+      "query": "\"Clearwater Analytics (CWAN)\" \"Americas Solution Engineering Team\"",
+      "purpose": "Understand what Americas Solution Engineering Team covers within Clearwater Analytics (CWAN)",
+      "priority": "high",
+      "derived_from": "inferred_team_context_llm"
+    },
+    {
+      "query": "\"Clearwater Analytics (CWAN)\" \"multi-asset risk\" \"investment risk analytics\" \"risk\"",
+      "purpose": "Confirm Clearwater Analytics (CWAN)'s scope in these domains",
+      "priority": "medium",
+      "derived_from": "finance_domains"
+    },
+    {
+      "query": "\"Clearwater Analytics (CWAN)\" \"solutions\" \"risk\" \"analytics\"",
+      "purpose": "Locate Clearwater Analytics (CWAN) team/role context for this position type",
+      "priority": "low",
+      "derived_from": "title_keywords"
+    }
+  ],
+  "context_gaps": [
+    "JD did not explicitly name a division or business line — research should identify the team's place in the org."
+  ],
+  "avoid_queries": [
+    "\"Clearwater Analytics (CWAN)\" company overview",
+    "\"Clearwater Analytics (CWAN)\" about us"
+  ],
+  "research_notes_target": "runs/2026-06-10_144548/research_notes/job_b9650aad.md"
+}
