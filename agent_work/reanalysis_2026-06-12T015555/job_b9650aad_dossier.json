@@ -1,0 +1,176 @@
+{
+  "business_context": {
+    "summary": "This role sits in SimCorp’s Performance & Risk Solutions Engineering pre-sales team and helps win buy-side risk-analytics business before a sale closes. It translates technical risk capabilities into client value, supports sales motions, and feeds prospect feedback back to Product.",
+    "problem_solved": "It helps sales teams navigate complex risk use cases and convince sophisticated institutional clients that the risk platform is credible, fit for workflow, and suitable for investment decision-making.",
+    "evidence": [
+      "the job is embedded in the “Performance & Risk Solutions Engineering (‘PreSales’) team,”",
+      "its purpose is to support “sales teams navigating complex risk use cases” while also “bringing feedback to the product team”",
+      "The role focuses on “multi-asset risk,” “ex-ante risk/tracking error,” “stress testing,” “single security analytics,” and “fixed income products and derivatives”"
+    ],
+    "confidence": "high"
+  },
+  "position_function": {
+    "primary_function": "Sales / PreSales (technical solutions engineering)",
+    "secondary_functions": [
+      "Risk Analytics",
+      "Product Feedback / Voice of Customer"
+    ],
+    "function_mix_description": "Primarily a technical pre-sales solutions engineering role with a secondary responsibility to relay market feedback to Product and contribute domain risk-analytics expertise.",
+    "reason": "The role is explicitly part of the PreSales team, is responsible for discovery, RFPs, demos, and POCs, and must explain the modeling assumptions behind the risk analytics tool. That combination is characteristic of technical solutions engineering rather than delivery or implementation.",
+    "evidence": [
+      "The role is explicitly part of the “PreSales” team.",
+      "Responsibilities include “support sales across discovery, request for proposal (RFP), demo, and proof of concept (POC)”",
+      "The person must “demo Axioma risk analytics tool and explain the underlying modelling assumptions”",
+      "the role also “bring[s] prospect feedback to help improve product”"
+    ],
+    "confidence": "high"
+  },
+  "daily_workflow": {
+    "likely_inputs": [
+      "Prospect discovery notes, pain points, and technical questions",
+      "Client use cases related to risk analytics, tracking error, stress testing, and portfolio-level analysis",
+      "Sales account strategy and opportunity context",
+      "Product capability details and modeling assumptions behind the risk engine",
+      "Feedback from prospects about gaps, objections, and required enhancements"
+    ],
+    "likely_analyses": [
+      "Join discovery calls to understand the client’s investment process and risk workflow",
+      "Map prospect needs to platform capabilities and explain how the analytics work",
+      "Deliver demos of the Axioma risk analytics tool",
+      "Explain modeling assumptions, especially where clients may challenge methodology credibility",
+      "Handle objections and answer technical questions from sophisticated buy-side stakeholders",
+      "Support RFP responses and proof-of-concept efforts",
+      "Coordinate with Product to relay market feedback and potential improvements"
+    ],
+    "likely_outputs": [
+      "Demo narratives and tailored solution presentations",
+      "RFP and POC support materials",
+      "Requirement summaries and objection handling responses",
+      "Product feedback loops from the field"
+    ],
+    "likely_stakeholders": [
+      "Sales teams",
+      "Prospects and clients, especially asset managers, asset owners, and hedge funds",
+      "Product teams",
+      "Likely internal peers in Americas Solution Engineering"
+    ],
+    "evidence": [
+      "support sales across discovery, request for proposal (RFP), demo, and proof of concept (POC)",
+      "demo Axioma risk analytics tool and explain the underlying modelling assumptions",
+      "supporting “sales teams navigating complex risk use cases”",
+      "bringing feedback to the product team"
+    ]
+  },
+  "underlying_skill_demands": [
+    {
+      "jd_phrase": "support sales across discovery, request for proposal (RFP), demo, and proof of concept (POC)",
+      "demand_type": "workflow_capability",
+      "underlying_capability": "Execute the full pre-sales motion across discovery, demos, POCs, and RFP support.",
+      "importance": "core",
+      "research_contribution": "Research clarified that this is a solutions engineering pre-sales motion rather than implementation or post-sale delivery.",
+      "evidence": [
+        "support sales across discovery, request for proposal (RFP), demo, and proof of concept (POC)"
+      ],
+      "confidence": "high"
+    },
+    {
+      "jd_phrase": "demo Axioma risk analytics tool and explain the underlying modelling assumptions",
+      "demand_type": "technical_skill",
+      "underlying_capability": "Present a technical risk platform credibly and explain its methodology in clear, persuasive terms.",
+      "importance": "core",
+      "research_contribution": "",
+      "evidence": [
+        "demo Axioma risk analytics tool and explain the underlying modelling assumptions"
+      ],
+      "confidence": "high"
+    },
+    {
+      "jd_phrase": "sales teams navigating complex risk use cases",
+      "demand_type": "mixed",
+      "underlying_capability": "Translate complex client risk needs into platform fit and sales-ready narratives.",
+      "importance": "core",
+      "research_contribution": "",
+      "evidence": [
+        "support “sales teams navigating complex risk use cases”"
+      ],
+      "confidence": "high"
+    },
+    {
+      "jd_phrase": "multi-asset risk",
+      "demand_type": "domain_knowledge",
+      "underlying_capability": "Understand cross-asset risk concepts and how they are expressed in institutional workflows.",
+      "importance": "core",
+      "research_contribution": "",
+      "evidence": [
+        "The role focuses on “multi-asset risk”"
+      ],
+      "confidence": "medium"
+    },
+    {
+      "jd_phrase": "ex-ante risk/tracking error",
+      "demand_type": "domain_knowledge",
+      "underlying_capability": "Understand forward-looking risk metrics and how portfolio tracking error is used by buy-side clients.",
+      "importance": "core",
+      "research_contribution": "",
+      "evidence": [
+        "“ex-ante risk/tracking error”"
+      ],
+      "confidence": "medium"
+    },
+    {
+      "jd_phrase": "stress testing",
+      "demand_type": "analytical_capability",
+      "underlying_capability": "Explain and apply scenario-based risk analysis in a client-facing context.",
+      "importance": "supporting",
+      "research_contribution": "",
+      "evidence": [
+        "“stress testing”"
+      ],
+      "confidence": "medium"
+    },
+    {
+      "jd_phrase": "fixed income products and derivatives",
+      "demand_type": "domain_knowledge",
+      "underlying_capability": "Recognize how fixed income and derivatives exposures affect portfolio risk analytics and client questions.",
+      "importance": "supporting",
+      "research_contribution": "",
+      "evidence": [
+        "“fixed income products and derivatives”"
+      ],
+      "confidence": "medium"
+    },
+    {
+      "jd_phrase": "bringing feedback to the product team",
+      "demand_type": "stakeholder_capability",
+      "underlying_capability": "Convert field feedback into actionable product input and communicate it effectively to internal teams.",
+      "importance": "supporting",
+      "research_contribution": "",
+      "evidence": [
+        "bringing feedback to the product team"
+      ],
+      "confidence": "high"
+    }
+  ],
+  "primary_workstream": "Risk Analytics / Automation / Data",
+  "secondary_workstreams": [
+    "Model Risk / Model Validation",
+    "Stress Testing / Scenario Analysis"
+  ],
+  "workstream_evidence": [
+    "The role focuses on “multi-asset risk,” “ex-ante risk/tracking error,” “stress testing,” “single security analytics,” and “fixed income products and derivatives”",
+    "demo Axioma risk analytics tool and explain the underlying modelling assumptions"
+  ],
+  "workstream_confidence": "high",
+  "uncertainty_notes": [
+    {
+      "issue": "The exact client segment and regional remit are not fully explicit in the report beyond indications of Americas Solution Engineering and buy-side prospects.",
+      "impact": "This affects how narrowly the role should be interpreted in terms of geography and buyer type."
+    },
+    {
+      "issue": "The role appears to involve model explanation and credibility discussions, but it is not a formal model validation role.",
+      "impact": "This matters because the job can look adjacent to model risk/validation even though it is primarily pre-sales risk analytics."
+    }
+  ],
+  "analyst_notes": "This is a technical pre-sales solutions engineering role for buy-side risk analytics. The strongest candidates would combine credible quantitative risk knowledge with client-facing communication, demo skills, and the ability to turn objections and prospect feedback into sales momentum and product input. It is different from implementation roles because the output is deal support and product positioning, not deployment or production support.",
+  "confidence": "high"
+}

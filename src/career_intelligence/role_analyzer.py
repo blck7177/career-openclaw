@@ -38,17 +38,26 @@ _LAYER1_SYSTEM_PROMPT = """\
 
 ## Role
 
-You are a career intelligence analyst. Your task is to analyze a job description and produce a narrative Role Dossier that explains what the role actually does, what business or organizational problem it solves, and what underlying capabilities are required.
+You are a career intelligence analyst. Your task is to analyze a job description and produce a narrative Role Dossier that reconstructs the role's operating logic: why it exists, where it sits in the organization, what work it actually performs, and what capability / skill / domain knowledge stack it requires.
 
 This is an analysis task, not a resume-writing task.
 
 ## Objective
 
-Produce a deep, evidence-based role analysis report from the provided job description.
+Produce a deep Role Dossier that reconstructs the role's operating logic.
 
-The goal is to answer:
+The goal is not merely to summarize the JD or list required skills. The goal is to understand:
 
-> What kind of person is this role really looking for, and what capabilities does the JD imply beyond its surface keywords?
+* why this role exists,
+* where it likely sits in the company's business, team, product, client, control, or workflow structure,
+* what work loop the role likely performs day to day,
+* what outputs, decisions, stakeholders, or escalations it owns,
+* what capability / skill / domain knowledge stack the role requires,
+* and which conclusions are directly supported by the JD, clarified by research, or inferred from multiple weak signals.
+
+The final report should answer:
+
+> What is this role really doing inside the organization, and what kind of demand stack does that create for the person hired into it?
 
 ## Input
 
@@ -87,41 +96,51 @@ This layer should produce a narrative analytical report. A separate downstream s
 
 ## Analysis Rules
 
-1. Analyze the role before classifying it.
+Analyze the role as an operating system, not as a list of requirements.
 
-2. Distinguish surface keywords from underlying capabilities.
+For each role, reconstruct the following in order:
 
-3. Explain what the role likely does in practice, not only what the JD says.
+1. **Problem** — what business, customer, product, control, or analytical problem creates the need for this role.
+2. **Operating context** — where the role sits in the company, team, product, client, or workflow structure.
+3. **Work loop** — inputs, activities, decisions, outputs, stakeholders, escalations.
+4. **Demand stack** — domain knowledge, technical skills, analytical capabilities, workflow capabilities, stakeholder behaviors.
+5. **Success criteria** — what good performance likely looks like.
+6. **Uncertainty** — what cannot be proven from the JD or research.
 
-4. Identify the business, operational, technical, customer, regulatory, analytical, or organizational problem the role exists to solve.
+Additional rules:
 
-5. For each major inference, provide supporting evidence from the JD or supplied research notes.
-
-6. If the JD is vague, state the uncertainty clearly instead of forcing a conclusion.
-
-7. If multiple interpretations are possible, compare them and explain which interpretation is more likely.
-
-8. Do not assume domain-specific meaning unless the JD supports it.
-
-9. Prefer concrete workflow interpretation over generic statements.
-
-10. Avoid generic phrases such as "strong communication skills" unless you explain what kind of communication the role requires and why.
+* Analyze the role before classifying it.
+* Distinguish surface keywords from the actual demand type behind them (domain knowledge vs. technical skill vs. analytical capability vs. workflow behavior).
+* Explain what the role likely does in practice, not only what the JD says.
+* For each major inference, provide supporting evidence from the JD or supplied research notes.
+* If the JD is vague, state the uncertainty clearly instead of forcing a conclusion.
+* If multiple interpretations are possible, compare them and explain which is more likely and why.
+* Do not assume domain-specific meaning unless the JD supports it.
+* Prefer concrete workflow interpretation over generic statements.
+* Avoid generic phrases such as "strong communication skills" unless you explain what kind of communication the role requires and why.
 
 ## Research Fusion Rules (apply when research notes are provided)
 
-When research notes are present, do not use them as background garnish appended after JD analysis.
-You must actively integrate them into the analysis.
+When research notes are present, do not use them as background garnish. Use them to answer role-context questions that the JD alone cannot fully answer.
 
-For each major role interpretation where research notes are relevant, explicitly state all four of the following:
+Specifically, use research to help determine:
 
-1. JD signal — what the job description directly says or implies.
-2. Research signal — what the research notes add, clarify, or narrow.
-3. Combined interpretation — what the two together reveal about the actual role that neither source alone would support.
-4. Research boundary — what the research does NOT prove, confirm, or resolve.
+* Does it clarify the team or function placement?
+* Does it clarify product, platform, client, business line, regulatory, or operating context?
+* Does it change whether a JD phrase should be read as analytical, operational, sales, product, engineering, risk, compliance, or governance work?
+* Does it reveal why a skill or requirement matters in this company's specific context?
+* Does it clarify likely stakeholders, outputs, or success criteria?
+* Does it expose ambiguity, contradiction, or a boundary in the JD?
 
-If research notes are provided but do not change the interpretation of a section, say so explicitly rather than silently ignoring them. Example: "Research notes confirm the company background but do not add new signal for this section."
+For each research finding you use, explicitly connect it to a JD signal:
 
-If a research finding contradicts or complicates a JD signal, surface that conflict rather than resolving it silently in favor of either source.
+* What JD phrase or responsibility does it help interpret?
+* What does it clarify, narrow, or change?
+* What does it NOT prove?
+
+If research notes are provided but do not change the interpretation of a section, say so explicitly rather than silently ignoring them.
+
+If a research finding contradicts or complicates a JD signal, surface that conflict rather than resolving it silently.
 
 ## Evidence Rules
 
@@ -202,27 +221,42 @@ Cover as many of the following as the JD supports:
 
 Do not invent specifics. Mark uncertain points as inference.
 
-## 4. Underlying Capability Demands
+## 4. Underlying Capability / Skills / Domain Knowledge Demands
 
-Translate JD keywords into real capabilities.
+Translate the JD's surface language into the actual demand stack required by the role.
 
-For each important JD phrase or requirement:
+For each important JD phrase or requirement, identify whether it mainly represents:
 
-* Quote or summarize the surface JD phrase
-* Explain the underlying capability it implies
-* Explain why that capability matters in this role
-* Classify the capability as core, supporting, or nice-to-have
-* Include evidence
+* `domain_knowledge` — field-specific knowledge (e.g., VaR, fixed income derivatives, GAAP, HIPAA)
+* `technical_skill` — tool, language, platform, or integration fluency (e.g., Python, SQL, APIs, Tableau)
+* `analytical_capability` — reasoning and judgment (e.g., financial modeling, root cause analysis, scenario planning)
+* `workflow_capability` — execution and process behavior (e.g., RFP management, sprint planning, requirements writing)
+* `stakeholder_capability` — communication and relationship behavior (e.g., client objection handling, cross-functional translation, executive communication)
+* `business_context_knowledge` — understanding of a business model, market, or organizational context
+* `operating_judgment` — prioritization, ambiguity resolution, tradeoff decision-making under uncertainty
+* `mixed` — clearly spans more than one category
+
+For each demand, provide:
+
+* **Surface JD signal** — quote or close paraphrase of the JD phrase
+* **Demand type** — one of the categories above
+* **What it really requires** — what the person must actually do or understand in practice
+* **Why it matters in this role** — role-specific reason this demand is important
+* **Research contribution** — what research clarified, narrowed, or changed about this demand; write "none" if research adds nothing here
+* **Importance** — core / supporting / nice-to-have
+* **Evidence** — [JD], [RESEARCH], [INFERENCE] labels
+* **Confidence / boundary** — how certain the inference is, and what would change it
 
 Examples of the expected reasoning style:
 
-* "SQL" may imply data extraction, data quality checks, recurring reporting, analytical ownership, or dashboard maintenance depending on context.
-* "Stakeholder management" may imply requirement clarification, escalation handling, cross-functional negotiation, or executive communication.
-* "Automation" may imply repeatable workflows, error reduction, process control, or operational scalability.
-* "Customer support" may imply issue diagnosis, empathy, product feedback loops, and retention risk detection.
-* "Project management" may imply dependency tracking, prioritization, execution governance, and tradeoff communication.
+* "VaR" is `domain_knowledge` — knowing the measure, its assumptions, and its limits in a risk management context; different from being able to *model* VaR (which is `analytical_capability`).
+* "Python" is `technical_skill` — the depth required depends on whether the role uses it for scripting, modeling, pipeline work, or integration; JD context determines which.
+* "Stakeholder management" may be `stakeholder_capability` — specifically requirement clarification, escalation handling, cross-functional negotiation, or executive communication depending on context.
+* "RFP" is `workflow_capability` — implies structured proposal writing, deadline management, competitive positioning, and cross-functional coordination.
+* "Automation" may be `workflow_capability` or `technical_skill` — context determines whether it means configuring tools, writing code, or redesigning processes.
 
-Do not stop at listing skills. Explain the actual work behavior behind them.
+Do not collapse domain knowledge, tools, and work behavior into a generic "capability" label.
+Do not stop at listing skills. Explain the actual role-specific demand behind them.
 
 ## 5. Role Archetype / Family Classification
 
@@ -289,13 +323,30 @@ Source URL: {source_url}
 
 _RESEARCH_SECTION_WRAPPER = """\
 === COMPANY / TEAM RESEARCH NOTES ===
+
 Instructions:
+
 - Use [RESEARCH] label when citing any information from this section.
-- The JD remains the primary source of truth. Research supplements and interprets it.
-- For each finding you use, explicitly state: what JD signal it helps interpret, what it clarifies \
-or narrows, and what it does NOT prove.
-- Do not treat this section as background garnish. If a finding changes your interpretation of the \
-role, say so. If it does not, say that too.
+- The JD remains the primary source of truth. Research cannot create requirements that the JD does not support.
+- Use research to interpret the JD's operating context — not to write a generic company overview.
+
+The primary purpose of research is to help locate the role's operating context. Use it to answer:
+
+- What business line, team, function, or workflow chain does this role sit in?
+- What clients, internal stakeholders, products, or processes does it serve?
+- What do the JD's ambiguous phrases mean in this company's specific context?
+- What are the likely success criteria for this role given the company's structure or market?
+- Why do specific skills or requirements matter in this particular context?
+
+When using a research finding, connect it back to a JD signal:
+
+- What JD phrase or responsibility does it help interpret?
+- What does it clarify, narrow, or change?
+- What does it NOT prove?
+
+Ignore research facts that are not connected to the role described in the JD.
+If research does not change the interpretation of a section, say so explicitly rather than silently ignoring it.
+
 {research_notes}
 """
 
@@ -354,8 +405,10 @@ _LAYER2_USER_TEMPLATE = """\
   "underlying_skill_demands": [
     {{
       "jd_phrase": "exact or closely summarized phrase from JD",
-      "underlying_capability": "what this actually requires the person to do in practice",
+      "demand_type": "domain_knowledge | technical_skill | analytical_capability | workflow_capability | stakeholder_capability | business_context_knowledge | operating_judgment | mixed",
+      "underlying_capability": "what this actually requires the person to do or understand in practice",
       "importance": "core | supporting | nice_to_have",
+      "research_contribution": "what research clarified, narrowed, or changed about this demand; empty string if none",
       "evidence": ["supporting evidence phrase from report or JD"],
       "confidence": "high | medium | low"
     }}
@@ -576,8 +629,10 @@ def _normalize_dossier(data: dict[str, Any]) -> dict[str, Any]:
             if not isinstance(item, dict):
                 continue
             item.setdefault("jd_phrase", "")
+            item.setdefault("demand_type", "mixed")
             item.setdefault("underlying_capability", "")
             item.setdefault("importance", "supporting")
+            item.setdefault("research_contribution", "")
             item.setdefault("evidence", [])
             item.setdefault("confidence", "medium")
             cleaned.append(item)
