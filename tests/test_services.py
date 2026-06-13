@@ -310,3 +310,57 @@ class TestTaskService:
         assert len(all_tasks) == 2
         job_report_tasks = task_service.list_tasks(ctx, task_type="job_report")
         assert len(job_report_tasks) == 1
+
+    def test_claim_increments_attempts(self, ctx, monkeypatch, data_root):
+        """attempts starts at 0 and becomes 1 the first time a task is claimed."""
+        monkeypatch.setattr(
+            "career_intelligence.services.task_service.get_data_root",
+            lambda: data_root,
+        )
+        from career_intelligence.services import task_service
+        task_id = task_service.create_task(ctx, "job_report", {"job_id": "job_a"})
+        assert task_service.get_task(task_id)["attempts"] == 0
+
+        claimed = task_service.poll_pending_tasks()
+        assert claimed["attempts"] == 1
+        assert task_service.get_task(task_id)["attempts"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Worker crash-recovery tests (PR-B-lite)
+# ---------------------------------------------------------------------------
+
+class TestWorkerRecovery:
+    def _insert_running_task(self, store, *, attempts: int) -> str:
+        """Insert a task already stuck in 'running' with a given attempts count."""
+        task_id = store.create_task("test_ws", "job_report", {"job_id": "j"})
+        with store._conn() as conn:
+            conn.execute(
+                "UPDATE task_queue SET status = 'running', started_at = ?, "
+                "attempts = ? WHERE task_id = ?",
+                ("2026-01-01T00:00:00+00:00", attempts, task_id),
+            )
+        return task_id
+
+    def test_recovery_requeues_under_cap(self, store, monkeypatch):
+        from apps.worker import worker
+        monkeypatch.setattr(worker, "MAX_ATTEMPTS", 3)
+        task_id = self._insert_running_task(store, attempts=2)
+
+        worker._recover_stale_tasks(store)
+
+        task = store.get_task(task_id)
+        assert task["status"] == "pending"
+        assert task["started_at"] is None
+
+    def test_recovery_fails_over_cap(self, store, monkeypatch):
+        from apps.worker import worker
+        monkeypatch.setattr(worker, "MAX_ATTEMPTS", 3)
+        task_id = self._insert_running_task(store, attempts=3)
+
+        worker._recover_stale_tasks(store)
+
+        task = store.get_task(task_id)
+        assert task["status"] == "failed"
+        assert task["finished_at"] is not None
+        assert "exceeded max attempts" in (task["error_message"] or "")

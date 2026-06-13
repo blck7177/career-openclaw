@@ -15,8 +15,10 @@ Design:
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import time
+from datetime import datetime, timezone
 from typing import Any
 
 from career_intelligence.app_state.metadata_store import MetadataStore
@@ -36,6 +38,11 @@ logger = logging.getLogger(__name__)
 
 POLL_INTERVAL_S = 5
 
+# Max number of times a task may be *started* (claimed), not handler-level
+# retries. Bounds crash-mid-run re-execution so a poison task that repeatedly
+# kills the worker cannot loop forever. Overridable via env.
+MAX_ATTEMPTS = int(os.environ.get("TASK_MAX_ATTEMPTS", "3"))
+
 HANDLERS = {
     "job_report": handle_job_report,
     "fit_report": handle_fit_report,
@@ -49,22 +56,41 @@ HANDLERS = {
 
 def _recover_stale_tasks(store: MetadataStore) -> int:
     """
-    Reset any tasks stuck in 'running' state to 'pending'.
+    Recover tasks left stuck in 'running' by a crashed/killed worker.
 
-    This handles the case where the worker process was killed while a task
-    was in-flight.  On restart, those tasks become eligible for re-execution.
+    SEMANTICS: `attempts` counts task *starts* (incremented on claim), not
+    handler-level retries. A task whose handler raises is terminally failed by
+    the main loop (except -> complete_task(error=...) -> 'failed') and never
+    reaches this function. This recovery ONLY bounds crash-mid-run
+    re-execution — i.e. the worker died (OOM / kill / crash) while a task was
+    in-flight, leaving it stuck at 'running'.
 
-    Returns the number of tasks reset.
+    On startup:
+      - running tasks at/over MAX_ATTEMPTS  -> 'failed' (poison-task guard)
+      - running tasks under MAX_ATTEMPTS    -> 'pending' (started_at cleared)
+
+    Returns the number of tasks requeued to 'pending'.
     """
+    now = datetime.now(timezone.utc).isoformat()
     with store._conn() as conn:
-        cursor = conn.execute(
+        failed = conn.execute(
+            "UPDATE task_queue SET status = 'failed', finished_at = ?, "
+            "error_message = 'exceeded max attempts' "
+            "WHERE status = 'running' AND attempts >= ?",
+            (now, MAX_ATTEMPTS),
+        ).rowcount
+        requeued = conn.execute(
             "UPDATE task_queue SET status = 'pending', started_at = NULL "
-            "WHERE status = 'running'"
+            "WHERE status = 'running' AND attempts < ?",
+            (MAX_ATTEMPTS,),
+        ).rowcount
+    if failed:
+        logger.error(
+            "Failed %d 'running' task(s) over max attempts (%d)", failed, MAX_ATTEMPTS
         )
-        count = cursor.rowcount
-    if count:
-        logger.warning("Recovered %d stale 'running' task(s) → 'pending'", count)
-    return count
+    if requeued:
+        logger.warning("Recovered %d stale 'running' task(s) → 'pending'", requeued)
+    return requeued
 
 
 # ---------------------------------------------------------------------------

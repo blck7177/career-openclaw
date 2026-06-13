@@ -27,6 +27,14 @@ _DEFAULT_MODEL_OPENAI = "gpt-4o"
 
 _MIN_KEY_LENGTH = 20  # shorter strings are treated as placeholders
 
+# Request-level reliability defaults. A bounded timeout turns an indefinitely
+# hung HTTP call into a recoverable failure, so the single worker can never be
+# frozen forever by one stuck LLM request. max_retries uses the SDK's built-in
+# exponential backoff for transient errors (429 / 5xx / connection), and does
+# not retry 4xx. Both are overridable via env.
+_DEFAULT_LLM_TIMEOUT_S = 90.0
+_DEFAULT_LLM_MAX_RETRIES = 2
+
 
 class LLMClient:
     """Thin wrapper that normalises Anthropic / OpenAI call interface."""
@@ -95,23 +103,58 @@ def make_client() -> LLMClient | None:
     """
     openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
     if _is_real_key(openai_key):
+        timeout_s, max_retries = _reliability_options()
         try:
             import openai as _openai  # type: ignore
-            raw = _openai.OpenAI(api_key=openai_key)
+            raw = _openai.OpenAI(
+                api_key=openai_key,
+                timeout=timeout_s,
+                max_retries=max_retries,
+            )
             return LLMClient("openai", raw, _DEFAULT_MODEL_OPENAI)
         except Exception:
             pass
 
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     if _is_real_key(anthropic_key):
+        timeout_s, max_retries = _reliability_options()
         try:
             import anthropic as _anthropic  # type: ignore
-            raw = _anthropic.Anthropic(api_key=anthropic_key)
+            raw = _anthropic.Anthropic(
+                api_key=anthropic_key,
+                timeout=timeout_s,
+                max_retries=max_retries,
+            )
             return LLMClient("anthropic", raw, _DEFAULT_MODEL_ANTHROPIC)
         except Exception:
             pass
 
     return None
+
+
+def _reliability_options() -> tuple[float, int]:
+    """
+    Resolve (timeout_s, max_retries) from env, falling back to defaults.
+
+    Parsed lazily — only after a usable API key is found — so a malformed
+    LLM_TIMEOUT_S / LLM_MAX_RETRIES never breaks the no-key path that returns
+    None. Invalid values fail fast with a clear, actionable message.
+    """
+    timeout_s = _parse_env_number("LLM_TIMEOUT_S", _DEFAULT_LLM_TIMEOUT_S, float)
+    max_retries = _parse_env_number("LLM_MAX_RETRIES", _DEFAULT_LLM_MAX_RETRIES, int)
+    return timeout_s, max_retries
+
+
+def _parse_env_number(name: str, default, caster):
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return caster(raw.strip())
+    except ValueError as exc:
+        raise ValueError(
+            f"Invalid {name}={raw!r}: expected {caster.__name__}"
+        ) from exc
 
 
 def _is_real_key(key: str) -> bool:

@@ -168,6 +168,7 @@ CREATE TABLE IF NOT EXISTS task_queue (
     status          TEXT NOT NULL DEFAULT 'pending',
     payload_json    TEXT,            -- JSON-encoded task input
     result_json     TEXT,            -- JSON-encoded task output on success
+    attempts        INTEGER NOT NULL DEFAULT 0,  -- task starts (incremented on claim)
     created_at      TEXT NOT NULL,
     started_at      TEXT,
     finished_at     TEXT,
@@ -228,6 +229,9 @@ CREATE INDEX IF NOT EXISTS idx_fit_reports_job ON fit_reports(job_id);
 _MIGRATIONS = [
     "ALTER TABLE fit_reports ADD COLUMN profile_hash TEXT",
     "ALTER TABLE fit_reports ADD COLUMN prompt_version TEXT",
+    # Brings pre-existing databases up to the task_queue DDL above. New
+    # databases already get this column from CREATE TABLE.
+    "ALTER TABLE task_queue ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0",
     # Cache key index must come after the column migrations above
     "CREATE INDEX IF NOT EXISTS idx_fit_reports_cache_key"
     " ON fit_reports(job_id, job_report_id, candidate_profile_id, profile_hash, prompt_version)",
@@ -523,14 +527,16 @@ class MetadataStore:
             ).fetchone()
             if not row:
                 return None
-            conn.execute(
-                "UPDATE task_queue SET status = 'running', started_at = ? WHERE task_id = ?",
-                (_now_iso(), row["task_id"]),
-            )
             now = _now_iso()
+            conn.execute(
+                "UPDATE task_queue SET status = 'running', started_at = ?, "
+                "attempts = attempts + 1 WHERE task_id = ?",
+                (now, row["task_id"]),
+            )
             task = dict(row)
             task["status"] = "running"
             task["started_at"] = now
+            task["attempts"] = (row["attempts"] or 0) + 1
             task["payload"] = _json.loads(task.get("payload_json") or "{}")
             return task
 
