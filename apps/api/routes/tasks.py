@@ -62,7 +62,7 @@ def enqueue_job_analysis(
 
 
 @router.get("/api/tasks/{task_id}")
-def get_task(task_id: str, ctx: CtxDep) -> dict[str, Any]:  # noqa: ARG001
+def get_task(task_id: str, ctx: CtxDep) -> dict[str, Any]:
     """
     Return the current status and result of a task.
 
@@ -73,9 +73,13 @@ def get_task(task_id: str, ctx: CtxDep) -> dict[str, Any]:  # noqa: ARG001
           "report_path": str, "structured_path": str }
 
     On 'failed', error_message contains the reason.
+
+    Workspace-scoped: a task is only visible to its owning workspace.  Requests
+    for a task belonging to another workspace get 404 (not 403) so existence is
+    not leaked.
     """
     task = task_service.get_task(task_id)
-    if task is None:
+    if task is None or task.get("workspace_id") != ctx.workspace_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Task not found: {task_id}",

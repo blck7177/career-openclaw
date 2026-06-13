@@ -188,6 +188,7 @@ def _patches(data_root: Path, *, llm_none: bool = False, llm_client=None):
          patch("career_intelligence.services.match_service.get_workspace_paths",
                side_effect=lambda ws_id, dr=None: WorkspacePaths(data_root, ws_id)), \
          patch("career_intelligence.services.profile_service.get_data_root", return_value=data_root), \
+         patch("career_intelligence.services.job_service.get_catalog_workspace_id", return_value="test_ws"), \
          patch("career_intelligence.services.job_service.get_workspace_paths",
                side_effect=lambda ws_id, dr=None: WorkspacePaths(data_root, ws_id)), \
          patch("career_intelligence.services.match_service.make_client",

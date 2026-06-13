@@ -284,10 +284,10 @@ def create_fit_report(
     store = MetadataStore.from_data_root(data_root)
     store.init_schema()
 
-    # 1. Load workspace job record
+    # 1. Load job record from the shared catalog
     job_record = get_job(ctx, job_id)
     if job_record is None:
-        raise ValueError(f"Job not found in workspace '{ctx.workspace_id}': {job_id}")
+        raise ValueError(f"Job not found in catalog: {job_id}")
 
     # 2. Load candidate profile
     candidate_profile = get_profile(ctx, profile_id)

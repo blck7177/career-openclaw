@@ -33,7 +33,10 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 _SESSION_TTL_DAYS = int(os.getenv("SESSION_TTL_DAYS", "30"))
 _COOKIE_NAME = "sid"
-_COOKIE_SECURE = os.getenv("COOKIE_SECURE", "0") == "1"
+# Secure cookies default ON in production (HTTPS), OFF otherwise (local http dev),
+# and remain explicitly overridable via COOKIE_SECURE.
+_IS_PRODUCTION = os.getenv("ENV", "development").lower() == "production"
+_COOKIE_SECURE = os.getenv("COOKIE_SECURE", "1" if _IS_PRODUCTION else "0") == "1"
 
 
 class InviteRequest(BaseModel):

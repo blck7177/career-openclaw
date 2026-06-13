@@ -71,7 +71,7 @@ def enqueue_fit_report(
 @router.get("/api/fit-reports/{fit_report_id}")
 def get_fit_report(
     fit_report_id: str,
-    ctx: CtxDep,  # noqa: ARG001 — validates auth
+    ctx: CtxDep,
 ) -> dict[str, Any]:
     """
     Return a completed Candidate Fit Report.
@@ -83,13 +83,17 @@ def get_fit_report(
         }
 
     Does NOT include task metadata — use GET /api/tasks/{task_id} for that.
+
+    Workspace-scoped: fit reports contain private candidate data, so a report is
+    only readable by its owning workspace.  Cross-workspace requests get 404
+    (not 403) so existence is not leaked.
     """
     data_root = get_data_root()
     store = MetadataStore.from_data_root(data_root)
     store.init_schema()
 
     row = store.get_fit_report(fit_report_id)
-    if row is None:
+    if row is None or row.get("workspace_id") != ctx.workspace_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Fit report not found: {fit_report_id}",

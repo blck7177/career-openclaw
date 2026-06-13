@@ -79,6 +79,14 @@ def _write_run(runs_root: Path, run_id: str, config: dict, summary: dict | None 
 # ---------------------------------------------------------------------------
 
 class TestJobService:
+    @pytest.fixture(autouse=True)
+    def _catalog_is_test_ws(self, monkeypatch):
+        """Jobs read from the shared catalog; point the catalog at the test workspace."""
+        monkeypatch.setattr(
+            "career_intelligence.services.job_service.get_catalog_workspace_id",
+            lambda: "test_ws",
+        )
+
     def test_list_jobs_empty(self, ctx: RequestContext, ws_paths: WorkspacePaths, monkeypatch, data_root):
         monkeypatch.setattr(
             "career_intelligence.services.job_service.get_workspace_paths",
@@ -141,6 +149,22 @@ class TestJobService:
         from career_intelligence.services import job_service
         result = job_service.get_job(ctx, "job_zzz")
         assert result is None
+
+    def test_catalog_is_shared_across_workspaces(self, ws_paths, monkeypatch, data_root):
+        """Jobs written to the catalog are visible from any workspace, not just the writer's."""
+        records = [{"job_id": "job_shared", "title": "Risk Analyst", "company": "Acme"}]
+        _write_jobs(ws_paths.db_dir, records)  # ws_paths == catalog workspace (test_ws)
+        monkeypatch.setattr(
+            "career_intelligence.services.job_service.get_workspace_paths",
+            lambda wid: WorkspacePaths(data_root, wid),
+        )
+        from career_intelligence.services import job_service
+
+        # A brand-new, different workspace still sees the shared catalog.
+        other_ctx = RequestContext(workspace_id="freshly_invited_ws", user_id="newcomer")
+        listed = job_service.list_jobs(other_ctx)
+        assert [j["job_id"] for j in listed] == ["job_shared"]
+        assert job_service.get_job(other_ctx, "job_shared") is not None
 
 
 # ---------------------------------------------------------------------------

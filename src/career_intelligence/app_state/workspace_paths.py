@@ -37,7 +37,14 @@ Directory layout:
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
+
+# Workspace id whose job store backs the shared, browsable job catalog.
+# Job records (titles, JDs, structured fields) are not user-specific, so every
+# workspace browses this one catalog. It defaults to dev_default, which is where
+# the search/process pipeline writes. Override with CATALOG_WORKSPACE_ID.
+_DEFAULT_CATALOG_WORKSPACE_ID = "dev_default"
 
 
 def get_repo_root() -> Path:
@@ -53,6 +60,17 @@ def get_repo_root() -> Path:
 def get_data_root() -> Path:
     """Absolute path to the data/ directory at the repo root."""
     return get_repo_root() / "data"
+
+
+def get_catalog_workspace_id() -> str:
+    """
+    Return the workspace id that backs the shared, browsable job catalog.
+
+    Job records are not user-specific, so all workspaces read jobs from this one
+    catalog workspace (a newly-invited user therefore sees jobs immediately).
+    Defaults to dev_default; override with the CATALOG_WORKSPACE_ID env var.
+    """
+    return os.getenv("CATALOG_WORKSPACE_ID", _DEFAULT_CATALOG_WORKSPACE_ID)
 
 
 class WorkspacePaths:

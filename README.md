@@ -104,9 +104,9 @@ bash scripts/monitor_search.sh <session_id>
 ### 模式二：Web 平台（本地开发，3 个终端）
 
 ```bash
-# 终端 1 — FastAPI
+# 终端 1 — FastAPI（本地开发需显式开启 DEV_MODE 才能用 X-Dev-Context 跳过 auth）
 cd career-openclaw
-.venv/bin/uvicorn apps.api.main:app --reload --port 8000
+DEV_MODE=1 .venv/bin/uvicorn apps.api.main:app --reload --port 8000
 
 # 终端 2 — Worker
 cd career-openclaw
@@ -118,7 +118,8 @@ npm install && npm run dev
 # → http://localhost:3000
 ```
 
-无浏览器时用 `X-Dev-Context: dev` header 跳过 auth（`DEV_MODE=1` 默认开启）：
+无浏览器时用 `X-Dev-Context: dev` header 跳过 auth。该 bypass **默认关闭**（secure by default），
+需显式设 `DEV_MODE=1` 且 `ENV` 非 `production` 才生效；生产部署即使误设 `DEV_MODE=1` 也会被强制禁用：
 
 ```bash
 curl -H "X-Dev-Context: dev" http://localhost:8000/api/jobs

@@ -113,6 +113,8 @@ def _patches(data_root: Path, *, analyze_returns=None, llm_client=None, llm_none
 
     with patch("career_intelligence.services.analysis_service.get_data_root", return_value=data_root), \
          patch("career_intelligence.app_state.workspace_paths.get_data_root", return_value=data_root), \
+         patch("career_intelligence.services.job_service.get_catalog_workspace_id", return_value="test_ws"), \
+         patch("career_intelligence.services.analysis_service.get_catalog_workspace_id", return_value="test_ws"), \
          patch("career_intelligence.services.analysis_service.analyze_role", return_value=fake_result) as mock_analyze, \
          patch("career_intelligence.services.analysis_service.make_client", return_value=fake_client) as mock_make_client:
         yield mock_analyze, mock_make_client

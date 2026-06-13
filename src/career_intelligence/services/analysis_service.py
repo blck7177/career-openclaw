@@ -29,6 +29,7 @@ import yaml
 from career_intelligence.app_state.context import RequestContext
 from career_intelligence.app_state.metadata_store import MetadataStore
 from career_intelligence.app_state.workspace_paths import (
+    get_catalog_workspace_id,
     get_data_root,
     get_global_paths,
     get_workspace_paths,
@@ -73,13 +74,13 @@ def create_job_report(
     store = MetadataStore.from_data_root(data_root)
     store.init_schema()
 
-    # 1. Load workspace job record
+    # 1. Load job record from the shared catalog
     job_record = get_job(ctx, job_id)
     if job_record is None:
-        raise ValueError(f"Job not found in workspace '{ctx.workspace_id}': {job_id}")
+        raise ValueError(f"Job not found in catalog: {job_id}")
 
-    # 2. Resolve raw JD text
-    jd_text = _resolve_jd_text(job_record, ctx.workspace_id, data_root)
+    # 2. Resolve raw JD text from the catalog workspace (where the pipeline wrote it)
+    jd_text = _resolve_jd_text(job_record, get_catalog_workspace_id(), data_root)
 
     # 3. Compute cache key
     jd_hash = hashlib.md5(jd_text.encode("utf-8")).hexdigest()[:16]

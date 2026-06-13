@@ -1,10 +1,17 @@
 """
-JobService — workspace-scoped job record queries.
+JobService — shared job catalog queries.
 
-Jobs live in data/workspaces/<workspace_id>/db/jobs.jsonl (append-only JSONL).
-The job_index.json maps job_id → line number for O(1) point lookups.
+Job records are NOT user-specific (a job description is the same for everyone),
+so all workspaces browse one shared catalog. The catalog is physically the job
+store of the catalog workspace (get_catalog_workspace_id(), default dev_default —
+where the search/process pipeline writes):
 
-All functions take RequestContext as first argument.
+    data/workspaces/<catalog_workspace_id>/db/jobs.jsonl  (append-only JSONL)
+    data/workspaces/<catalog_workspace_id>/db/job_index.json  (job_id → line)
+
+Functions still take RequestContext (the route layer uses it for auth), but the
+job records returned are the shared catalog, independent of ctx.workspace_id.
+Workspace-private data (candidate profiles, fit reports) lives elsewhere.
 """
 
 from __future__ import annotations
@@ -14,7 +21,10 @@ from pathlib import Path
 from typing import Any
 
 from career_intelligence.app_state.context import RequestContext
-from career_intelligence.app_state.workspace_paths import get_workspace_paths
+from career_intelligence.app_state.workspace_paths import (
+    get_catalog_workspace_id,
+    get_workspace_paths,
+)
 from career_intelligence.storage_jsonl import query_jobs
 
 
@@ -33,8 +43,11 @@ def list_jobs(
     company    : substring match against company name (case-insensitive)
     since      : ISO date string "YYYY-MM-DD" — only jobs found on or after this date
     limit      : max records returned (default 100)
+
+    Reads from the shared catalog (not ctx.workspace_id) — every workspace sees
+    the same jobs.
     """
-    paths = get_workspace_paths(ctx.workspace_id)
+    paths = get_workspace_paths(get_catalog_workspace_id())
     return query_jobs(
         paths.db_dir,
         workstream=workstream,
@@ -50,8 +63,10 @@ def get_job(ctx: RequestContext, job_id: str) -> dict[str, Any] | None:
 
     Uses job_index.json for O(1) line lookup to avoid scanning the full JSONL.
     Falls back to a full scan if the index is stale or missing.
+
+    Reads from the shared catalog (not ctx.workspace_id).
     """
-    paths = get_workspace_paths(ctx.workspace_id)
+    paths = get_workspace_paths(get_catalog_workspace_id())
     jobs_path = paths.jobs_db
     index_path = paths.job_index
 

@@ -1,7 +1,10 @@
 """
 Job routes.
 
-GET /api/jobs                      — list jobs in workspace
+Jobs are a shared catalog (not workspace-private), so every authenticated
+workspace browses the same job list — a newly-invited user sees jobs immediately.
+
+GET /api/jobs                      — list jobs in the shared catalog
 GET /api/jobs/{job_id}             — job detail
 GET /api/jobs/{job_id}/job-report  — active Job Intelligence Report for this job
 """
@@ -26,7 +29,7 @@ def list_jobs(
     since: str | None = Query(default=None, description="ISO date YYYY-MM-DD lower bound"),
     limit: int = Query(default=100, ge=1, le=500),
 ) -> list[dict[str, Any]]:
-    """List job records visible in the workspace."""
+    """List job records from the shared catalog."""
     return job_service.list_jobs(
         ctx,
         workstream=workstream,
