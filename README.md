@@ -66,24 +66,21 @@ cp .env.example .env
 ./wrappers/career_summarize_run --run-id <id> --format markdown
 ```
 
-**Step 3 — Research Notes**（可选但推荐）
+**Step 3 — Analyze Roles（Job Intelligence Report）**
+
+岗位分析已收敛到产品化 worker 路径，不再使用独立 CLI。通过 API 触发 `job_report` 任务，
+worker 调 `analysis_service.create_job_report()` → `role_analyzer.analyze_role()`：
+
 ```bash
-./wrappers/career_prepare_research --run-id <id>
-# agent: web_search + web_fetch → 写入 runs/<id>/research_notes/<job_id>.md
+# JD-only 报告
+curl -XPOST .../api/jobs/<job_id>/analyze
+# JD + web research 增强报告（worker 先经 career-research 产出并校验 research_bundle）
+curl -XPOST '.../api/jobs/<job_id>/analyze?with_research=true'
 ```
 
-**Step 4 — Analyze Roles**
-```bash
-# 有 research notes 时（推荐）:
-./wrappers/career_analyze_roles --run-id <id> \
-  --research-notes-dir runs/<id>/research_notes
+结果写入 `data/global/job_report_artifacts/<job_report_id>/` 并登记到 MetadataStore。
 
-# 无 research notes 时:
-./wrappers/career_analyze_roles --run-id <id> --allow-missing-research
-# 结果写入 runs/<id>/role_dossier_reports/ 和 runs/<id>/role_dossiers.jsonl
-```
-
-**Step 5 — Reflect**
+**Step 4 — Reflect**
 ```bash
 ./wrappers/career_update_strategy --run-id <id> --patch-file agent_work/drafts/strategy_patch_<id>.json
 ```
@@ -205,8 +202,6 @@ career-openclaw/
 │   ├── career_validate_run          ← Process：验证 run output
 │   ├── career_query_jobs            ← Process/Query：查询已入库岗位
 │   ├── career_summarize_run         ← Process/Reflect：run summary
-│   ├── career_prepare_research      ← Research Notes：写 research context
-│   ├── career_analyze_roles         ← Analyze Roles：生成 Job Intelligence Reports
 │   ├── career_read_strategy         ← Reflect/Search：读取策略状态
 │   └── career_update_strategy       ← Reflect：写回策略 patch
 │

@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS job_reports (
     job_id          TEXT NOT NULL REFERENCES jobs(job_id),
     jd_hash         TEXT NOT NULL,
     prompt_version  TEXT NOT NULL,
+    research_bundle_hash TEXT NOT NULL DEFAULT 'none',  -- 'none' = JD-only report
     model           TEXT,
     status          TEXT NOT NULL DEFAULT 'active',  -- active | superseded
     superseded_by   TEXT,                            -- job_report_id
@@ -77,7 +78,26 @@ CREATE TABLE IF NOT EXISTS job_reports (
 
 CREATE INDEX IF NOT EXISTS idx_job_reports_job_id ON job_reports(job_id);
 CREATE INDEX IF NOT EXISTS idx_job_reports_cache_key
-    ON job_reports(job_id, jd_hash, prompt_version);
+    ON job_reports(job_id, jd_hash, prompt_version, research_bundle_hash);
+
+-- Web-research evidence bundles (career-research output). Provenance only;
+-- artifacts (notes.md / sources.json) live on the filesystem.
+CREATE TABLE IF NOT EXISTS research_bundles (
+    research_bundle_id      TEXT PRIMARY KEY,
+    job_id                  TEXT NOT NULL REFERENCES jobs(job_id),
+    research_inputs_hash    TEXT NOT NULL,   -- cache/freshness key
+    bundle_hash             TEXT NOT NULL,   -- content hash (folds into report cache key)
+    validation_status       TEXT NOT NULL,   -- passed | partial | failed
+    source_count            INTEGER NOT NULL DEFAULT 0,
+    verified_source_count   INTEGER NOT NULL DEFAULT 0,
+    notes_path              TEXT,
+    sources_path            TEXT,
+    run_log_path            TEXT,
+    created_at              TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_research_bundles_cache_key
+    ON research_bundles(job_id, research_inputs_hash);
 
 -- =========================================================================
 -- Workspace / auth tables
@@ -235,6 +255,11 @@ _MIGRATIONS = [
     # Cache key index must come after the column migrations above
     "CREATE INDEX IF NOT EXISTS idx_fit_reports_cache_key"
     " ON fit_reports(job_id, job_report_id, candidate_profile_id, profile_hash, prompt_version)",
+    # Research-augmented job reports: existing DBs get the cache-key column here.
+    # New DBs already have it from CREATE TABLE above.
+    "ALTER TABLE job_reports ADD COLUMN research_bundle_hash TEXT NOT NULL DEFAULT 'none'",
+    "CREATE INDEX IF NOT EXISTS idx_job_reports_cache_key_research"
+    " ON job_reports(job_id, jd_hash, prompt_version, research_bundle_hash)",
 ]
 
 
@@ -384,17 +409,25 @@ class MetadataStore:
         job_id: str,
         jd_hash: str,
         prompt_version: str,
+        research_bundle_hash: str = "none",
     ) -> dict[str, Any] | None:
-        """Return an existing active report for the given cache key, or None."""
+        """
+        Return an existing active report for the given cache key, or None.
+
+        research_bundle_hash defaults to 'none' (JD-only report). A research-
+        augmented report is cached under its bundle hash, so the two never
+        collide and a fresh research bundle invalidates a stale JD-only report.
+        """
         with self._conn() as conn:
             row = conn.execute(
                 """
                 SELECT * FROM job_reports
-                WHERE job_id = ? AND jd_hash = ? AND prompt_version = ? AND status = 'active'
+                WHERE job_id = ? AND jd_hash = ? AND prompt_version = ?
+                  AND research_bundle_hash = ? AND status = 'active'
                 ORDER BY created_at DESC
                 LIMIT 1
                 """,
-                (job_id, jd_hash, prompt_version),
+                (job_id, jd_hash, prompt_version, research_bundle_hash),
             ).fetchone()
             return dict(row) if row else None
 
@@ -408,10 +441,11 @@ class MetadataStore:
         structured_path: str | None = None,
         sources_path: str | None = None,
         job_report_id: str | None = None,
+        research_bundle_hash: str = "none",
     ) -> str:
         """
         Insert a new active job report and supersede any older active report
-        for the same (job_id, jd_hash, prompt_version).
+        for the same (job_id, prompt_version).
 
         job_report_id: if provided, use this ID instead of generating a new one.
                        Useful when the caller pre-allocates the ID to determine
@@ -423,7 +457,7 @@ class MetadataStore:
         now = _now_iso()
         with self._conn() as conn:
             # Supersede previous active reports for this job + prompt version
-            # (jd_hash may differ if JD changed)
+            # (jd_hash / research_bundle_hash may differ if JD or research changed)
             old_rows = conn.execute(
                 """
                 SELECT job_report_id FROM job_reports
@@ -439,14 +473,68 @@ class MetadataStore:
             conn.execute(
                 """
                 INSERT INTO job_reports
-                    (job_report_id, job_id, jd_hash, prompt_version, model, status,
-                     report_path, structured_path, sources_path, created_at)
-                VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)
+                    (job_report_id, job_id, jd_hash, prompt_version, research_bundle_hash,
+                     model, status, report_path, structured_path, sources_path, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)
                 """,
-                (job_report_id, job_id, jd_hash, prompt_version, model,
-                 report_path, structured_path, sources_path, now),
+                (job_report_id, job_id, jd_hash, prompt_version, research_bundle_hash,
+                 model, report_path, structured_path, sources_path, now),
             )
         return job_report_id
+
+    # -------------------------------------------------------------------------
+    # Research bundle helpers
+    # -------------------------------------------------------------------------
+
+    def get_active_research_bundle(
+        self,
+        job_id: str,
+        research_inputs_hash: str,
+    ) -> dict[str, Any] | None:
+        """Return the most recent research bundle for this cache key, or None."""
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM research_bundles
+                WHERE job_id = ? AND research_inputs_hash = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (job_id, research_inputs_hash),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def insert_research_bundle(
+        self,
+        job_id: str,
+        research_inputs_hash: str,
+        bundle_hash: str,
+        validation_status: str,
+        source_count: int = 0,
+        verified_source_count: int = 0,
+        notes_path: str | None = None,
+        sources_path: str | None = None,
+        run_log_path: str | None = None,
+        research_bundle_id: str | None = None,
+    ) -> str:
+        """Insert a research bundle provenance row. Returns research_bundle_id."""
+        if not research_bundle_id:
+            research_bundle_id = "rb_" + uuid.uuid4().hex[:8]
+        now = _now_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO research_bundles
+                    (research_bundle_id, job_id, research_inputs_hash, bundle_hash,
+                     validation_status, source_count, verified_source_count,
+                     notes_path, sources_path, run_log_path, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (research_bundle_id, job_id, research_inputs_hash, bundle_hash,
+                 validation_status, source_count, verified_source_count,
+                 notes_path, sources_path, run_log_path, now),
+            )
+        return research_bundle_id
 
     # -------------------------------------------------------------------------
     # Run helpers

@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
-# monitor_search.sh — 持续驱动 career-intel agent 完成 search session
-# 每轮结束后检查进度，直到 session status=search_complete 或 pipeline 跑完
+# monitor_search.sh — [DEPRECATED, Phase 2] legacy manual driver.
+#
+# This script embodies the old "agent owns full workflow" pattern: it drives the
+# monolithic career-intel agent and lets it call career_search_session end /
+# career_update_strategy directly. As of Phase 2, discovery is owned by the
+# worker via services/agent_service.run_discovery_session, which drives the
+# bounded career-search-agent through agent_gateway and finalizes the session
+# itself. Prefer enqueuing a `search_run` task. Kept only for ad-hoc manual runs.
 
 set -euo pipefail
 

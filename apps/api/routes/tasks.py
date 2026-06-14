@@ -37,6 +37,7 @@ def enqueue_job_analysis(
     job_id: str,
     ctx: CtxDep,
     force: bool = False,
+    with_research: bool = False,
 ) -> AnalyzeResponse:
     """
     Enqueue an async Job Intelligence Report generation task.
@@ -47,11 +48,14 @@ def enqueue_job_analysis(
 
     Query params:
         force (bool, default False): re-generate even if a cached report exists.
+        with_research (bool, default False): run career-research first to
+            produce a validated web-research bundle and generate a
+            research-augmented report (degrades to JD-only if research fails).
     """
     task_id = task_service.create_task(
         ctx,
         task_type="job_report",
-        payload={"job_id": job_id, "force": force},
+        payload={"job_id": job_id, "force": force, "with_research": with_research},
     )
     return AnalyzeResponse(task_id=task_id)
 

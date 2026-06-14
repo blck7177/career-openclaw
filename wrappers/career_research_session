@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# career_research_session — record research fetches into the research ledger
+# Usage: ./wrappers/career_research_session log-fetch --job-id <id> --inputs-hash <h> --url <url>
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORKSPACE_ROOT="$(dirname "$SCRIPT_DIR")"
+
+cd "$WORKSPACE_ROOT"
+
+if [[ ! -d ".venv" ]]; then
+  echo '{"error": "Python venv not found. Run: python -m venv .venv && source .venv/bin/activate && pip install -e ."}' >&2
+  exit 1
+fi
+
+exec .venv/bin/python -m career_intelligence.tools.research_session_cli "$@"

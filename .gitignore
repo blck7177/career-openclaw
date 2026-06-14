@@ -35,13 +35,6 @@ runs/*/skipped_results.jsonl
 runs/*/run_summary.json
 runs/*/run_summary.md
 runs/*/coverage_report.md
-runs/*/role_dossiers.jsonl
-runs/*/role_research_tasks.jsonl
-
-# Prevent new role analysis artifacts in legacy runs/ path
-runs/*/role_dossier_reports/
-runs/*/role_research_plans/
-runs/*/research_notes/
 
 # ============================================================
 # Database — schema tracked, generated data is not

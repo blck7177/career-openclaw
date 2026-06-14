@@ -38,8 +38,7 @@ career-log-candidates = "career_intelligence.tools.log_candidates_cli:main"
 career-search-status = "career_intelligence.tools.search_status_cli:main"
 career-read-strategy = "career_intelligence.tools.read_strategy:main"
 career-update-strategy = "career_intelligence.tools.update_strategy:main"
-career-analyze-roles = "career_intelligence.tools.analyze_roles_cli:main"
-career-prepare-research = "career_intelligence.tools.prepare_research_cli:main"
+career-research-session = "career_intelligence.tools.research_session_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

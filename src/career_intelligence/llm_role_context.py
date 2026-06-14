@@ -10,7 +10,7 @@ Architecture boundary:
   research_notes/   →  role_analyzer.py Layer 1       (role dossier web research context)
 
 These two are separate and must not be confused. This module never writes research_notes files
-and is never consumed by career_analyze_roles.
+and is never consumed by the role analysis path (analysis_service / role_analyzer).
 """
 
 from __future__ import annotations

@@ -11,12 +11,13 @@ Manages the lifecycle of an agent-led search session:
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from .url_utils import url_hash as _url_hash
 
 RUNNER_VERSION = "0.1.0"
 
@@ -31,10 +32,6 @@ def _now_iso() -> str:
 
 def _session_id_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
-
-
-def _url_hash(url: str) -> str:
-    return hashlib.md5(url.encode()).hexdigest()[:8]
 
 
 def _runs_dir(workspace_root: Path) -> Path:

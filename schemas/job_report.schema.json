@@ -232,6 +232,25 @@
     "analyst_notes": {
       "type": "string",
       "description": "Concise analyst summary: what the role is really about, who would succeed, what makes it distinct."
+    },
+
+    "used_research": {
+      "type": "boolean",
+      "description": "Whether a validated web-research bundle was fed into Layer 1 ([RESEARCH] context). False = JD-only report."
+    },
+    "research_bundle_hash": {
+      "type": "string",
+      "description": "Content hash of the research bundle used, or 'none'. Folded into the report cache key."
+    },
+    "research_validation_status": {
+      "type": "string",
+      "enum": ["passed", "partial", "failed"],
+      "description": "Anti-fabrication gate result for the research bundle, when research was attempted."
+    },
+    "research_source_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of research sources verified against real web_fetch calls."
     }
   }
 }

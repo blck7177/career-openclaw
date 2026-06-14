@@ -49,6 +49,7 @@ def create_job_report(
     job_id: str,
     *,
     force: bool = False,
+    research_bundle: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Generate (or return cached) a global Job Intelligence Report.
@@ -57,6 +58,11 @@ def create_job_report(
         ctx:     RequestContext — used to locate the workspace job record and raw JD.
         job_id:  The job to analyze.
         force:   If True, skip cache and regenerate even if an active report exists.
+        research_bundle: Optional validated web-research bundle (from
+                 research_service.ensure_research_bundle). When present and
+                 usable, its notes are fed into Layer 1 as [RESEARCH] context and
+                 its hash is folded into the cache key. A failed/None bundle
+                 yields a JD-only report (research_bundle_hash = "none").
 
     Returns:
         {
@@ -64,6 +70,7 @@ def create_job_report(
           "status": "created" | "cache_hit",
           "report_path": str,
           "structured_path": str,
+          "used_research": bool,
         }
 
     Raises:
@@ -82,18 +89,26 @@ def create_job_report(
     # 2. Resolve raw JD text from the catalog workspace (where the pipeline wrote it)
     jd_text = _resolve_jd_text(job_record, get_catalog_workspace_id(), data_root)
 
-    # 3. Compute cache key
+    # 3. Compute cache key (research hash folds in so a fresh bundle invalidates
+    #    a stale JD-only report and vice versa)
     jd_hash = hashlib.md5(jd_text.encode("utf-8")).hexdigest()[:16]
+    use_research = bool(research_bundle and research_bundle.get("used_research"))
+    research_bundle_hash = (
+        research_bundle.get("bundle_hash", "none") if use_research else "none"
+    )
 
     # 4. Cache lookup
     if not force:
-        cached = store.get_active_job_report(job_id, jd_hash, PROMPT_VERSION)
+        cached = store.get_active_job_report(
+            job_id, jd_hash, PROMPT_VERSION, research_bundle_hash
+        )
         if cached:
             return {
                 "job_report_id": cached["job_report_id"],
                 "status": "cache_hit",
                 "report_path": cached.get("report_path", ""),
                 "structured_path": cached.get("structured_path", ""),
+                "used_research": research_bundle_hash != "none",
             }
 
     # 5. Load taxonomy and LLM client
@@ -104,15 +119,34 @@ def create_job_report(
             "No LLM API key configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY."
         )
 
-    # 6. Run analysis
+    # 6. Resolve research notes (only when the bundle validated as usable)
+    research_notes = ""
+    if use_research:
+        notes_path = Path(research_bundle.get("notes_path", ""))
+        if notes_path and notes_path.exists():
+            research_notes = notes_path.read_text(encoding="utf-8")
+
+    # 7. Run analysis
     report_md, structured_report, prompt_version = analyze_role(
         jd_text=jd_text,
         job_record=job_record,
         taxonomy=taxonomy,
         llm_client=llm_client,
+        research_notes=research_notes,
     )
 
-    # 7. Write artifacts
+    # 8. Stamp research provenance onto the structured report
+    structured_report["used_research"] = bool(research_notes)
+    structured_report["research_bundle_hash"] = research_bundle_hash
+    if research_bundle is not None:
+        structured_report["research_validation_status"] = research_bundle.get(
+            "validation_status", "failed"
+        )
+        structured_report["research_source_count"] = research_bundle.get(
+            "verified_source_count", 0
+        )
+
+    # 9. Write artifacts
     global_paths = get_global_paths(data_root)
     job_report_id = "rpt_" + uuid.uuid4().hex[:8]
     artifact_dir = global_paths.job_report_dir(job_report_id)
@@ -127,7 +161,17 @@ def create_job_report(
         encoding="utf-8",
     )
 
-    # 8. Insert into MetadataStore (auto-supersedes prior active report)
+    # Copy research sources alongside the report for provenance
+    sources_path_str: str | None = None
+    if research_bundle and research_bundle.get("sources"):
+        sources_path = global_paths.job_report_sources(job_report_id)
+        sources_path.write_text(
+            json.dumps(research_bundle["sources"], ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        sources_path_str = str(sources_path)
+
+    # 10. Insert into MetadataStore (auto-supersedes prior active report)
     model_name = getattr(llm_client, "_default_model", None)
     store.insert_job_report(
         job_id=job_id,
@@ -136,7 +180,9 @@ def create_job_report(
         model=model_name if isinstance(model_name, str) else None,
         report_path=str(report_path),
         structured_path=str(structured_path),
+        sources_path=sources_path_str,
         job_report_id=job_report_id,
+        research_bundle_hash=research_bundle_hash,
     )
 
     return {
@@ -144,6 +190,7 @@ def create_job_report(
         "status": "created",
         "report_path": str(report_path),
         "structured_path": str(structured_path),
+        "used_research": bool(research_notes),
     }
 
 

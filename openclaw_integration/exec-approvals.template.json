@@ -57,8 +57,8 @@
           "pattern": "career_register_board"
         },
         {
-          "id": "career_analyze_roles",
-          "pattern": "career_analyze_roles"
+          "id": "career_research_session",
+          "pattern": "career_research_session"
         }
       ]
     }

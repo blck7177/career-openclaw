@@ -261,3 +261,92 @@ class TestCreateJobReport:
         assert cached is not None
         assert cached["job_report_id"] == result["job_report_id"]
         assert cached["status"] == "active"
+
+
+class TestResearchAugmentedReport:
+
+    def test_usable_bundle_feeds_research_notes(
+        self, data_root: Path, ctx: RequestContext, tmp_path: Path
+    ) -> None:
+        """A usable research bundle is read and passed to analyze_role as notes."""
+        job_id = "job_res001"
+        _write_job_with_jd(data_root, ctx.workspace_id, job_id, "Risk role.")
+
+        notes_file = tmp_path / "research_notes.md"
+        notes_file.write_text("# Research Notes\nFlex risk platform context.", encoding="utf-8")
+        bundle = {
+            "validation_status": "passed",
+            "bundle_hash": "abc123",
+            "used_research": True,
+            "notes_path": str(notes_file),
+            "sources": [{"url": "https://flex.com/x", "verified": True}],
+            "source_count": 1,
+            "verified_source_count": 1,
+        }
+
+        with _patches(data_root) as (mock_analyze, _):
+            result = svc.create_job_report(ctx, job_id, research_bundle=bundle)
+
+        assert result["used_research"] is True
+        # analyze_role received the research notes
+        _, kwargs = mock_analyze.call_args
+        assert "Flex risk platform context" in kwargs["research_notes"]
+
+        # structured.json carries provenance
+        structured = json.loads(Path(result["structured_path"]).read_text())
+        assert structured["used_research"] is True
+        assert structured["research_bundle_hash"] == "abc123"
+
+    def test_failed_bundle_degrades_to_jd_only(
+        self, data_root: Path, ctx: RequestContext
+    ) -> None:
+        """A failed bundle yields a JD-only report (research_bundle_hash 'none')."""
+        job_id = "job_res002"
+        _write_job_with_jd(data_root, ctx.workspace_id, job_id, "Risk role.")
+
+        bundle = {
+            "validation_status": "failed",
+            "bundle_hash": "none",
+            "used_research": False,
+            "notes_path": "",
+            "sources": [],
+            "source_count": 0,
+            "verified_source_count": 0,
+        }
+
+        with _patches(data_root) as (mock_analyze, _):
+            result = svc.create_job_report(ctx, job_id, research_bundle=bundle)
+
+        assert result["used_research"] is False
+        _, kwargs = mock_analyze.call_args
+        assert kwargs["research_notes"] == ""
+
+    def test_augmented_and_jd_only_do_not_share_cache(
+        self, data_root: Path, ctx: RequestContext, tmp_path: Path
+    ) -> None:
+        """A research report and a JD-only report live under different cache keys."""
+        job_id = "job_res003"
+        _write_job_with_jd(data_root, ctx.workspace_id, job_id, "Risk role.")
+
+        notes_file = tmp_path / "notes.md"
+        notes_file.write_text("# Research Notes\nctx", encoding="utf-8")
+        bundle = {
+            "validation_status": "passed",
+            "bundle_hash": "hash_xyz",
+            "used_research": True,
+            "notes_path": str(notes_file),
+            "sources": [],
+            "source_count": 1,
+            "verified_source_count": 1,
+        }
+
+        with _patches(data_root):
+            augmented = svc.create_job_report(ctx, job_id, research_bundle=bundle)
+
+        # JD-only call should NOT hit the augmented cache entry
+        with _patches(data_root) as (mock_analyze, _):
+            jd_only = svc.create_job_report(ctx, job_id)
+
+        assert jd_only["status"] == "created"
+        assert jd_only["job_report_id"] != augmented["job_report_id"]
+        mock_analyze.assert_called_once()

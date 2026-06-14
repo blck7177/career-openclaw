@@ -220,11 +220,41 @@ class GlobalPaths:
         return self.job_report_dir(job_report_id) / "sources.json"
 
     # -------------------------------------------------------------------------
+    # Research bundles (career-research evidence)
+    # -------------------------------------------------------------------------
+
+    @property
+    def research_artifacts_root(self) -> Path:
+        return self.root / "research_artifacts"
+
+    def research_bundle_dir(self, job_id: str, research_inputs_hash: str) -> Path:
+        """Directory holding one research bundle's artifacts."""
+        return self.research_artifacts_root / job_id / research_inputs_hash
+
+    def research_notes(self, job_id: str, research_inputs_hash: str) -> Path:
+        return self.research_bundle_dir(job_id, research_inputs_hash) / "research_notes.md"
+
+    def research_sources(self, job_id: str, research_inputs_hash: str) -> Path:
+        return self.research_bundle_dir(job_id, research_inputs_hash) / "research_sources.json"
+
+    def research_fetch_ledger(self, job_id: str, research_inputs_hash: str) -> Path:
+        return self.research_bundle_dir(job_id, research_inputs_hash) / "research_fetch_ledger.jsonl"
+
+    def research_input_spec(self, job_id: str, research_inputs_hash: str) -> Path:
+        return self.research_bundle_dir(job_id, research_inputs_hash) / "agent_input.json"
+
+    def research_run_log(self, job_id: str, research_inputs_hash: str) -> Path:
+        return self.research_bundle_dir(job_id, research_inputs_hash) / "agent_run_log.json"
+
+    def research_bundle_record(self, job_id: str, research_inputs_hash: str) -> Path:
+        return self.research_bundle_dir(job_id, research_inputs_hash) / "research_bundle.json"
+
+    # -------------------------------------------------------------------------
     # Helpers
     # -------------------------------------------------------------------------
 
     def ensure_dirs(self) -> None:
-        for d in [self.root, self.job_report_artifacts_root]:
+        for d in [self.root, self.job_report_artifacts_root, self.research_artifacts_root]:
             d.mkdir(parents=True, exist_ok=True)
 
 

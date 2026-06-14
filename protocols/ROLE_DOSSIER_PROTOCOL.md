@@ -1,119 +1,74 @@
-# Role Dossier Protocol
+# Job Report Protocol（原 Role Dossier）
+
+> 历史命名 `role_dossier` 已统一为 `job_report`。Layer 2 结构 schema 见 `schemas/job_report.schema.json`。
 
 ## 目的
 
-Role Dossier 是 job_record 的上层分析。
+Job Report 是 job_record 的上层分析。
 
 ```
-job_record     → "这个 JD 说了什么"（事实层）
-role_dossier   → "这个岗位到底需要什么人、在解决什么问题"（理解层）
+job_record   → "这个 JD 说了什么"（事实层）
+job_report   → "这个岗位到底需要什么人、在解决什么问题"（理解层）
 ```
 
-不要把 role dossier 的内容写回 job_record，也不要试图用 job_record 的字段替代 role dossier。两层分开存储。
+不要把 job_report 的内容写回 job_record，也不要试图用 job_record 的字段替代 job_report。两层分开存储。
 
 ---
 
-## 触发时机
+## 触发方式（产品化路径）
 
-`career_analyze_roles` 是独立的 post-processing 步骤，**不自动接入主 pipeline**。
+岗位分析已收敛到产品化 worker 路径，**不再使用独立 CLI（`career_analyze_roles` / `career_prepare_research` 已废弃）**。
 
-在以下情况下手动触发：
-- 完成一轮 discovery run 后，需要深入理解某批岗位的能力要求
-- 在 profile matching 之前，需要先建立岗位理解层
+```
+POST /api/jobs/<job_id>/analyze                 → JD-only 报告
+POST /api/jobs/<job_id>/analyze?with_research=true → JD + web research 增强报告
+```
 
-前提条件（以下都必须满足）：
-1. 该 run 已跑过 `career_run_discovery`（`runs/<run_id>/jobs_structured.json` 存在）
-2. 目标岗位的 `raw_jds/<job_id>.txt` 存在（fetch 成功）
+流程：
+
+```
+job_report task
+  ↓
+worker 解析 job_record + JD
+  ↓
+若 with_research：
+    worker 调 research_service.ensure_research_bundle()
+      → career-research 执行 web_search/web_fetch，写 research_notes + sources
+      → research_validator 校验（反捏造闸门，见 RESEARCH 部分）
+      → 校验 failed 时降级为 JD-only
+  ↓
+analysis_service.create_job_report(research_bundle=...)
+  ↓
+role_analyzer.analyze_role()      ← 仍是 direct LLM call，agent 不写最终报告
+  ↓
+MetadataStore 记录 report + research provenance
+```
+
+前提条件：
+1. job_record 已存在（discovery pipeline 已入库）
+2. 可解析到原始 JD 文本（`raw_jd_path` 或内联 `jd_text`）
 
 ---
 
-## 触发方式
+## Research（agent 执行，可选增强）
 
-### 无 pre-research（基础模式）
+当 `with_research=true` 时，由 `career-research` 围绕一个已知 job/company/team 做补充研究。
+它不是找新岗位，而是研究：公司业务背景、team/division context、role 在组织中的位置、
+product/business line、为什么这个岗位存在、能澄清 JD 歧义的来源。
 
-```bash
-# 分析该 run 全部已 fetch 的岗位
-./wrappers/career_analyze_roles --run-id <run_id>
+**Agent 执行（每公司最多 3 次 web_search + web_fetch）：**
+按 research_planner 派生的优先级（high → medium → low）执行，每次 web_fetch 后调
+`career_research_session log-fetch` 写入 fetch ledger。
 
-# 先查有哪些岗位可以分析
-./wrappers/career_analyze_roles --run-id <run_id> --dry-run
-
-# 先试跑前 5 个，看 report 质量
-./wrappers/career_analyze_roles --run-id <run_id> --limit 5
-
-# 只分析指定 job_id
-./wrappers/career_analyze_roles --run-id <run_id> --job-ids <job_id1>,<job_id2>
-```
-
-### 带 pre-research（推荐，report 质量更高）
-
-先由 `career_prepare_research` 生成 JD-guided 搜索计划，再由 agent 执行 web research，最后触发分析：
-
-```bash
-# Step 1：生成 targeted research plan（基于 job_record 字段派生 search queries）
-./wrappers/career_prepare_research --run-id <run_id>
-
-# Step 1a（可选）：先 dry-run 预览计划，不写文件
-./wrappers/career_prepare_research --run-id <run_id> --dry-run
-
-# Step 2：agent 读 role_research_tasks.jsonl，按 priority 做 web_search + web_fetch，
-#          写 research_notes/<job_id>.md（见下方"Pre-Research 步骤"）
-
-# Step 3：检查哪些 job 有 research notes
-./wrappers/career_analyze_roles --run-id <run_id> \
-  --research-notes-dir runs/<run_id>/research_notes \
-  --dry-run
-
-# Step 4：运行分析
-./wrappers/career_analyze_roles --run-id <run_id> \
-  --research-notes-dir runs/<run_id>/research_notes
-```
-
-`career_prepare_research` 跳过逻辑：已有 `research_notes/<job_id>.md` 的 job 自动跳过。加 `--force` 可强制重新生成计划。
-
-`--research-notes-dir` 指定一个目录，wrapper 会在其中查找 `<job_id>.md` 文件。有 notes 的 job 会用 `[+research]` 标记。没有 notes 的 job 照常运行（向下兼容）。
-
----
-
-## Pre-Research 步骤（agent 执行）
-
-`career_prepare_research` 会在 `runs/<run_id>/` 写入：
-
-```
-role_research_plans/<job_id>.json   每个 job 的详细搜索计划（queries + context_gaps）
-role_research_tasks.jsonl           所有 job 的搜索任务汇总（方便 agent 批量处理）
-```
-
-`role_research_tasks.jsonl` 每行一条任务，包含：`job_id`、`company`、`query`、`purpose`、`priority`（high/medium/low）、`research_notes_target`。
-
-**搜索查询的派生逻辑（三层优先级）：**
-
-| 优先级 | Query 来源 | 示例 |
-|---|---|---|
-| high | `company` + `division_or_business_line`（JD 明确写出的 org 名称） | `"Flex" "Risk Platform team"` |
-| medium | `company` + `finance_domains` 中的前 3 个术语 | `"Flex" "credit risk" "fraud risk"` |
-| low | `company` + title 关键词（去噪声词） | `"Flex" "risk" "engineering"` |
-
-当 `division_or_business_line` 为空时，会用一次小 LLM call 从 `inferred_team_context` 中提取最有搜索价值的 org 名称，再生成 high priority query。
-
-**Agent 按计划执行 web research（每个公司最多 3 次 web_search + web_fetch）：**
-
-优先执行 high priority queries，其次 medium，low 作为 fallback。
-
-**写 research notes 文件：**
-
-文件路径：`runs/<run_id>/research_notes/<job_id>.md`
-
-**格式（强制结构）：**
+**Research Notes 文件（强制格式）：**
 
 ```markdown
 # Research Notes — <company> (<job_id>)
 Generated: <YYYY-MM-DD>
 
 ## Role-Specific Research Questions
-(从 role_research_plans/<job_id>.json 的 context_gaps 复制，作为本次 research 的聚焦目标)
+(从 research plan 的 context_gaps 复制，作为本次 research 的聚焦目标)
 - <question 1>
-- <question 2>
 
 ## Source Findings
 
@@ -126,32 +81,28 @@ Generated: <YYYY-MM-DD>
 - Evidence strength: high | medium | low
 - Boundary: <它不能证明什么>
 
-### Source 2
-...（最多 3 条 source）
-
-## Synthesis for Role Dossier
+## Synthesis for Job Report
 - What research clarifies about the JD: <具体说明>
 - What research does NOT clarify: <具体说明>
 - Remaining uncertainty: <还有哪些问题没搜到>
 ```
 
 **格式规则：**
-- 每条 finding 必须填写 `Related JD signal` 和 `What this helps interpret`，否则 Layer 1 LLM 无法有效融合 research 和 JD
-- `Relevant finding` 只写从 web_fetch 确认的内容，不写推测（推测性内容留给 Layer 1 LLM 处理）
-- 如果某家公司信息很少（刚融资的 startup、非知名公司），Source Findings 写 1 条，然后在 Synthesis 里如实说明 Research Gaps
-- `Boundary` 字段必须填写——它防止 Layer 1 LLM 过度引申 research 内容
-- 最多 3 条 source；宁可少而精，不要堆砌泛化的公司背景
+- 每条 finding 必须填 `Related JD signal` 和 `Boundary`，否则该来源在校验时被降级为 unverified。
+- `Relevant finding` 只写从 web_fetch 确认的内容，不写推测（推测留给 Layer 1 LLM）。
+- 最多 3 条 source；宁可少而精。
 
----
+### 反捏造闸门（research_validator）
 
-## 输入
+research-agent 没有联网就编 research_notes 是必须防的失败模式（对标 search 侧 `queries_run==0` 闸门）。
+双层校验：
 
-| 输入 | 路径 | 说明 |
-|---|---|---|
-| 已结构化 job records | `runs/<run_id>/jobs_structured.json` | 由 career_run_discovery 生成 |
-| 原始 JD 文本 | `runs/<run_id>/raw_jds/<job_id>.txt` | 必须存在，fetch 失败的 job 跳过 |
-| Workstream taxonomy | `configs/workstream_taxonomy.yaml` | 用于 Layer 2 分类约束 |
-| Research notes（可选） | `runs/<run_id>/research_notes/<job_id>.md` | agent 预先写入，缺失时跳过，不报错 |
+- **Layer A（主）**：gateway 从 agent run log 解析真实发生的 `web_fetch` 调用（agent 无法伪造）。
+- **Layer B（辅）**：`career_research_session log-fetch` 写的 fetch ledger，run log 不暴露工具调用时兜底。
+
+判定：零真实 fetch → `failed`；notes 非空但 sources 空 → `failed`；逐源用 url_hash 核对是否出现在真实
+fetch 集合，全部对不上 → `failed`，部分 → `partial`，全部命中 → `passed`。
+`failed` 时 worker **降级**为 JD-only report（不崩），`used_research=false`。
 
 ---
 
@@ -159,18 +110,18 @@ Generated: <YYYY-MM-DD>
 
 | 输出 | 路径 | 说明 |
 |---|---|---|
-| Layer 1 报告 | `runs/<run_id>/role_dossier_reports/<job_id>.md` | 每个 job 一份 narrative report |
-| Layer 2 结构 | `runs/<run_id>/role_dossiers.jsonl` | 所有 dossier 追加写入，event-log 模式 |
+| Layer 1 报告 | `data/global/job_report_artifacts/<job_report_id>/report.md` | narrative report |
+| Layer 2 结构 | `data/global/job_report_artifacts/<job_report_id>/structured.json` | 匹配 job_report.schema.json |
+| Research sources | `job_reports.sources_path`（MetadataStore） | research provenance |
 
 ---
 
 ## 两层结构
 
-### Layer 1：Narrative Role Report（推理层）
+### Layer 1：Narrative Job Intelligence Report（推理层）
 
 - 英文 markdown，7 个固定 section
 - 目标：充分展开岗位理解，**不填 schema，不评估候选人**
-- 允许推理、不确定性表达、多解释比较
 - Evidence label 规范：`[JD]` / `[TITLE]` / `[COMPANY]` / `[RESEARCH]` / `[INFERENCE]`
 
 固定 sections：
@@ -182,35 +133,26 @@ Generated: <YYYY-MM-DD>
 6. Evidence and Uncertainty Review
 7. Analyst Summary
 
-### Layer 2：Structured Role Dossier（存储层）
+### Layer 2：Structured Job Report（存储层）
 
 - 从 Layer 1 报告中 canonicalize，**不重新分析 JD**
-- Schema 见 `schemas/role_dossier.schema.json`
+- Schema 见 `schemas/job_report.schema.json`
 - `primary_workstream` 必须是 `configs/workstream_taxonomy.yaml` 中的枚举 label，或 `"unknown"`
 - 每个字段有 `evidence`（引用原文）和 `confidence`（high/medium/low）
 
 ---
 
-## 分类约束
-
-- `primary_workstream` / `secondary_workstreams` 的值**必须是 `workstream_taxonomy.yaml` 中的 label 字符串**，不得引入 taxonomy 之外的值
-- 如果 JD 不属于任何 taxonomy workstream，填 `"unknown"`，并在 `uncertainty_notes` 说明原因
-
----
-
 ## 质量判断标准
-
-读取 `runs/<run_id>/role_dossier_reports/<job_id>.md` 后，判断 Layer 1 report 质量：
 
 **合格**：
 - Section 4（Underlying Capability Demands）区分了 surface keyword 和 underlying capability
-- 每个主要结论都有 evidence label（`[JD]` / `[INFERENCE]` 等）
-- Uncertainty 写清楚了不确定的地方，而不是强行给出确定结论
+- 每个主要结论都有 evidence label
+- Uncertainty 写清楚了不确定的地方
 
-**不合格（需要重新生成）**：
+**不合格（需重新生成）**：
 - Section 4 只是重复 JD keyword list
 - 没有任何 evidence label
-- Section 7（Analyst Summary）与 Section 1 内容几乎相同，没有新的综合结论
+- Section 7 与 Section 1 几乎相同
 
 ---
 
@@ -219,5 +161,4 @@ Generated: <YYYY-MM-DD>
 - 不评估任何候选人的匹配度
 - 不写简历 bullet、cover letter、或 outreach 内容
 - 不修改 job_record 已有字段（两层分开）
-- 不直接写 `db/`（MVP 阶段 dossier 只写到 `runs/` 目录）
-- 不对 fetch 失败的岗位强行生成 dossier
+- agent 不写最终报告、不写 MetadataStore（agent 只产 research evidence）
