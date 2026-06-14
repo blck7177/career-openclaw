@@ -22,10 +22,24 @@ description: "Job search session operator. Use when running or continuing a sear
 ```
 了解上一轮：哪些 source 有效、哪些 workstream coverage 不足。不要从零开始。
 
-### Step 1：开始 session
-```bash
-./wrappers/career_search_session start --profile <profile_name>
-```
+### Step 1：确定 session
+
+**先判断 session 是谁创建的：**
+
+- **如果调用方（平台）已经在消息里给了你 `session_id`**（平台触发场景）：
+  session 已经由调用方创建好了。**不要再调 `career_search_session start`。**
+  直接把这个 `session_id` 用于后续所有 wrapper 调用的 `--session-id` 参数。
+  先用 `./wrappers/career_search_session status --session-id <session_id>` 确认它存在。
+
+- **如果没有给定 `session_id`**（独立/手动运行）：才由你自己创建一个：
+  ```bash
+  ./wrappers/career_search_session start --profile <profile_name>
+  ```
+  从返回的 JSON 里取 `session_id`，用于后续所有 wrapper 调用。
+
+> 关键：一次搜索全程只能有**一个** session。绝不要在已经拿到 `session_id` 的情况下再 `start`，
+> 否则会创建出与调用方追踪的不一致的第二个 session，导致结果丢失。
+
 写 `agent_work/drafts/search_plan.md`，确认本轮搜索方向和策略。
 
 ### Step 2：Search Loop

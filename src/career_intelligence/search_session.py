@@ -86,10 +86,38 @@ def start_session(
     max_queries: int = 30,
     max_fetched_pages: int = 40,
     stop_on_consecutive_empty: int = 3,
+    session_id: str | None = None,
 ) -> dict[str, Any]:
-    """Create a new search session directory and write run_config.yaml."""
-    session_id = _session_id_now()
+    """Create a new search session directory and write run_config.yaml.
+
+    session_id:
+        - None (default): a fresh timestamp-based id is generated. Standalone /
+          manual usage where the caller does not own an id.
+        - provided: the caller (e.g. the platform agent_service) owns the
+          session identity. This makes the function idempotent — if the
+          directory already exists with a run_config.yaml, the existing session
+          is returned unchanged (with reused=True) instead of clobbering any
+          in-progress ledger/candidate state. This is what lets the platform
+          pre-create a session and force the agent to reuse the same id rather
+          than starting a divergent one.
+    """
+    if session_id is None:
+        session_id = _session_id_now()
     sdir = session_dir(workspace_root, session_id)
+
+    import yaml  # type: ignore
+
+    rc_path = sdir / "run_config.yaml"
+    if rc_path.exists():
+        with open(rc_path) as f:
+            existing_config = yaml.safe_load(f) or {}
+        return {
+            "session_id": session_id,
+            "session_dir": str(sdir),
+            "run_config": existing_config,
+            "reused": True,
+        }
+
     sdir.mkdir(parents=True, exist_ok=True)
     (sdir / "raw_jds").mkdir(exist_ok=True)
 
@@ -107,11 +135,15 @@ def start_session(
         "status": "search_in_progress",
     }
 
-    import yaml  # type: ignore
-    with open(sdir / "run_config.yaml", "w") as f:
+    with open(rc_path, "w") as f:
         yaml.dump(run_config, f, default_flow_style=False, allow_unicode=True)
 
-    return {"session_id": session_id, "session_dir": str(sdir), "run_config": run_config}
+    return {
+        "session_id": session_id,
+        "session_dir": str(sdir),
+        "run_config": run_config,
+        "reused": False,
+    }
 
 
 def get_session_status(workspace_root: Path, session_id: str) -> dict[str, Any]:

@@ -37,8 +37,20 @@ def main() -> None:
 @click.option("--max-queries", default=30, type=int)
 @click.option("--max-pages", default=40, type=int)
 @click.option("--stop-empty", default=3, type=int)
-def start(profile: str, mode: str, max_queries: int, max_pages: int, stop_empty: int) -> None:
-    """Start a new search session."""
+@click.option(
+    "--session-id",
+    default=None,
+    help=(
+        "Reuse an existing caller-created session id instead of generating a "
+        "new one. When the platform has already created the session, pass it "
+        "here; start becomes idempotent and will not clobber existing state."
+    ),
+)
+def start(
+    profile: str, mode: str, max_queries: int, max_pages: int,
+    stop_empty: int, session_id: str | None,
+) -> None:
+    """Start a new search session (or reuse one when --session-id is given)."""
     result = start_session(
         workspace_root=WORKSPACE_ROOT,
         profile_name=profile,
@@ -46,6 +58,7 @@ def start(profile: str, mode: str, max_queries: int, max_pages: int, stop_empty:
         max_queries=max_queries,
         max_fetched_pages=max_pages,
         stop_on_consecutive_empty=stop_empty,
+        session_id=session_id,
     )
     _print_json(result)
 
