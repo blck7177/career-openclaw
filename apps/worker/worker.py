@@ -4,9 +4,20 @@ Worker — polls the SQLite task_queue and dispatches tasks by type.
 Usage:
     python -m apps.worker.worker
 
+Dual-lane operation (fast lane + agent lane):
+    Set WORKER_TASK_TYPES to a comma-separated list of task types this worker
+    instance should handle.  Leave unset to handle all types (single-worker /
+    backward-compatible).
+
+    Fast lane  (job_report, fit_report):
+        WORKER_TASK_TYPES=job_report,fit_report python -m apps.worker.worker
+
+    Agent lane (search_run — long-running, isolated from fast tasks):
+        WORKER_TASK_TYPES=search_run python -m apps.worker.worker
+
 Design:
-    - Single process, single thread — task_queue is designed for one worker.
-    - On startup, resets any 'running' tasks to 'pending' (crash recovery).
+    - Single process, single thread per instance.
+    - On startup, resets any 'running' tasks (for this lane) to 'pending'.
     - Dispatches to type-specific handlers; unknown types are failed immediately.
     - Any unhandled exception from a handler is caught and written to error_message.
     - Sleeps POLL_INTERVAL_S seconds when the queue is empty.
@@ -27,6 +38,7 @@ from career_intelligence.services import task_service
 
 from apps.worker.handlers.fit_report import handle_fit_report
 from apps.worker.handlers.job_report import handle_job_report
+from apps.worker.handlers.search_run import handle_search_run
 
 logging.basicConfig(
     level=logging.INFO,
@@ -43,9 +55,21 @@ POLL_INTERVAL_S = 5
 # kills the worker cannot loop forever. Overridable via env.
 MAX_ATTEMPTS = int(os.environ.get("TASK_MAX_ATTEMPTS", "3"))
 
+# Optional lane filter: comma-separated list of task_type values this worker
+# will claim.  Empty / unset = claim any task type (single-worker default).
+# Example: WORKER_TASK_TYPES=search_run  → agent lane
+#          WORKER_TASK_TYPES=job_report,fit_report → fast lane
+_WORKER_TASK_TYPES_RAW = os.environ.get("WORKER_TASK_TYPES", "").strip()
+WORKER_TASK_TYPES: list[str] | None = (
+    [t.strip() for t in _WORKER_TASK_TYPES_RAW.split(",") if t.strip()]
+    if _WORKER_TASK_TYPES_RAW
+    else None
+)
+
 HANDLERS = {
     "job_report": handle_job_report,
     "fit_report": handle_fit_report,
+    "search_run": handle_search_run,
 }
 
 
@@ -65,6 +89,10 @@ def _recover_stale_tasks(store: MetadataStore) -> int:
     re-execution — i.e. the worker died (OOM / kill / crash) while a task was
     in-flight, leaving it stuck at 'running'.
 
+    When WORKER_TASK_TYPES is set, only tasks belonging to this lane are
+    recovered — preventing a fast-lane restart from incorrectly requeuing a
+    long-running search_run that the agent lane is legitimately executing.
+
     On startup:
       - running tasks at/over MAX_ATTEMPTS  -> 'failed' (poison-task guard)
       - running tasks under MAX_ATTEMPTS    -> 'pending' (started_at cleared)
@@ -72,17 +100,25 @@ def _recover_stale_tasks(store: MetadataStore) -> int:
     Returns the number of tasks requeued to 'pending'.
     """
     now = datetime.now(timezone.utc).isoformat()
+
+    lane_clause = ""
+    lane_params: list[Any] = []
+    if WORKER_TASK_TYPES:
+        placeholders = ",".join("?" * len(WORKER_TASK_TYPES))
+        lane_clause = f" AND task_type IN ({placeholders})"
+        lane_params = list(WORKER_TASK_TYPES)
+
     with store._conn() as conn:
         failed = conn.execute(
-            "UPDATE task_queue SET status = 'failed', finished_at = ?, "
-            "error_message = 'exceeded max attempts' "
-            "WHERE status = 'running' AND attempts >= ?",
-            (now, MAX_ATTEMPTS),
+            f"UPDATE task_queue SET status = 'failed', finished_at = ?, "
+            f"error_message = 'exceeded max attempts' "
+            f"WHERE status = 'running' AND attempts >= ?{lane_clause}",
+            [now, MAX_ATTEMPTS, *lane_params],
         ).rowcount
         requeued = conn.execute(
-            "UPDATE task_queue SET status = 'pending', started_at = NULL "
-            "WHERE status = 'running' AND attempts < ?",
-            (MAX_ATTEMPTS,),
+            f"UPDATE task_queue SET status = 'pending', started_at = NULL "
+            f"WHERE status = 'running' AND attempts < ?{lane_clause}",
+            [MAX_ATTEMPTS, *lane_params],
         ).rowcount
     if failed:
         logger.error(
@@ -131,12 +167,13 @@ def main() -> None:
     store = MetadataStore.from_data_root(data_root)
     store.init_schema()
 
-    logger.info("Worker starting (data_root=%s)", data_root)
+    lane_label = ",".join(WORKER_TASK_TYPES) if WORKER_TASK_TYPES else "all"
+    logger.info("Worker starting (data_root=%s, lane=%s)", data_root, lane_label)
     _recover_stale_tasks(store)
     logger.info("Worker ready — polling every %ds", POLL_INTERVAL_S)
 
     while True:
-        task = task_service.poll_pending_tasks()
+        task = task_service.poll_pending_tasks(task_types=WORKER_TASK_TYPES)
         if task is None:
             time.sleep(POLL_INTERVAL_S)
             continue

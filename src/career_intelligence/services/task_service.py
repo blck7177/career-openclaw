@@ -60,15 +60,22 @@ def get_task(task_id: str) -> dict[str, Any] | None:
     return _store().get_task(task_id)
 
 
-def poll_pending_tasks() -> dict[str, Any] | None:
+def poll_pending_tasks(
+    task_types: list[str] | None = None,
+) -> dict[str, Any] | None:
     """
     Atomically claim the oldest pending task, setting its status to 'running'.
 
+    task_types: optional allowlist — only tasks of these types are claimed.
+                Pass None to claim any pending task (default, single-worker).
+                Pass a list to restrict to specific types, enabling separate
+                fast-lane and agent-lane worker processes.
+
     Returns the claimed task dict (with decoded payload), or None if the queue
-    is empty.  Intended for the worker process main loop — call in a tight loop
-    with a sleep on None.
+    has no eligible pending tasks.  Intended for the worker process main loop —
+    call in a tight loop with a sleep on None.
     """
-    return _store().claim_next_pending_task()
+    return _store().claim_next_pending_task(task_types=task_types)
 
 
 def complete_task(

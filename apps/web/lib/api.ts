@@ -328,3 +328,57 @@ export async function getFitReport(
 export async function listJobFitReports(jobId: string): Promise<FitReportSummary[]> {
   return req<FitReportSummary[]>(`/api/jobs/${jobId}/fit-reports`);
 }
+
+// ---------------------------------------------------------------------------
+// Operator — agent runs (discovery)
+// ---------------------------------------------------------------------------
+
+export interface AgentRunRequest {
+  profile_name: string;
+  search_brief: string;
+  mode?: "exploratory" | "refresh";
+  max_queries?: number;
+  max_pages?: number;
+}
+
+export interface AgentRunTask {
+  task_id: string;
+  workspace_id: string;
+  task_type: string;
+  status: "pending" | "running" | "completed" | "failed";
+  payload: AgentRunRequest;
+  result: {
+    session_id?: string;
+    queries_run?: number;
+    candidates_captured?: number;
+    jobs_saved?: number;
+    jobs_failed?: number;
+    duration_seconds?: number;
+  } | null;
+  error_message: string | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+}
+
+export async function triggerDiscovery(
+  body: AgentRunRequest,
+  operatorToken?: string,
+): Promise<{ task_id: string; message: string }> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (operatorToken) headers["X-Operator-Token"] = operatorToken;
+  return req<{ task_id: string; message: string }>("/api/operator/agent-runs", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+}
+
+export async function getAgentRun(
+  taskId: string,
+  operatorToken?: string,
+): Promise<AgentRunTask> {
+  const headers: Record<string, string> = {};
+  if (operatorToken) headers["X-Operator-Token"] = operatorToken;
+  return req<AgentRunTask>(`/api/operator/agent-runs/${taskId}`, { headers });
+}

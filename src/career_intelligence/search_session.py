@@ -261,10 +261,34 @@ def log_candidates(
     Write triaged candidates to candidate_pool.jsonl.
     Deduplicates by url_hash within the session.
     Rejects candidates with no source_url — they cannot be fetched by the pipeline.
+
+    Provenance guard: requires at least one real web_search query to have been
+    logged (via career_search_session log-query) before any candidates can be
+    admitted. This prevents fabricated or memory-sourced URLs from entering the
+    pool even if the agent bypasses the web_search step.
     """
     sdir = session_dir(workspace_root, session_id)
     if not sdir.exists():
         return {"error": f"Session {session_id} not found"}
+
+    # Provenance gate: candidate pool is only writable after at least one real
+    # web_search has been recorded in the search ledger.
+    ledger = _read_jsonl(sdir / "search_ledger.jsonl")
+    if not ledger:
+        return {
+            "error": (
+                "Provenance violation: search_ledger is empty (queries_run=0). "
+                "You must call web_search and career_search_session log-query "
+                "before logging candidates. Memory-sourced or fabricated URLs "
+                "are not permitted."
+            ),
+            "queries_run": 0,
+            "candidates_rejected": len(candidates),
+            "action_required": (
+                "Execute web_search → career_search_session log-query first, "
+                "then re-submit candidates."
+            ),
+        }
 
     existing = _read_jsonl(sdir / "candidate_pool.jsonl")
     existing_hashes = {e.get("url_hash") for e in existing}

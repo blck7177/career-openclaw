@@ -18,6 +18,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from apps.api.routes import auth, fit_reports, jobs, profiles, reports, runs, tasks
+from apps.api.routes.agent_runs import router as agent_runs_router
 from career_intelligence.app_state.metadata_store import MetadataStore
 from career_intelligence.app_state.workspace_paths import get_data_root
 
@@ -61,6 +62,7 @@ app.include_router(reports.router)
 app.include_router(tasks.router)
 app.include_router(profiles.router)
 app.include_router(fit_reports.router)
+app.include_router(agent_runs_router)
 
 
 @app.get("/healthz", tags=["ops"])

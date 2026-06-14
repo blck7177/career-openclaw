@@ -2,6 +2,7 @@ import { listRuns, type RunMeta } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { Clock, CheckCircle2, XCircle, Circle } from "lucide-react";
+import RunDiscoveryButton from "@/components/RunDiscoveryButton";
 
 export const dynamic = "force-dynamic";
 
@@ -37,9 +38,12 @@ export default async function RunsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Search Runs</h1>
-        <p className="text-muted-foreground text-sm mt-1">{runs.length} run{runs.length !== 1 ? "s" : ""} total</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Search Runs</h1>
+          <p className="text-muted-foreground text-sm mt-1">{runs.length} run{runs.length !== 1 ? "s" : ""} total</p>
+        </div>
+        <RunDiscoveryButton />
       </div>
 
       {runs.length === 0 ? (

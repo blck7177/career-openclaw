@@ -509,36 +509,72 @@ class MetadataStore:
             )
         return task_id
 
-    def claim_next_pending_task(self) -> dict[str, Any] | None:
+    def claim_next_pending_task(
+        self, task_types: list[str] | None = None
+    ) -> dict[str, Any] | None:
         """
         Atomically claim the oldest pending task by setting it to 'running'.
-        Returns the task row or None if no pending tasks.
-        Safe for single-worker usage with SQLite WAL mode.
+
+        task_types: if provided, only tasks whose task_type is in this list are
+                    eligible.  Pass None (default) to claim any pending task —
+                    preserves backward-compatible single-worker behaviour.
+
+        Uses a single UPDATE…WHERE task_id=(SELECT…) statement so the claim is
+        atomic within SQLite's serialised write lock — safe for two concurrent
+        worker processes (fast lane + agent lane) sharing the same SQLite file.
+
+        Returns the claimed task dict (payload decoded) or None if no eligible
+        pending task exists.
         """
         import json as _json
+
+        type_clause = ""
+        type_params: list[str] = []
+        if task_types:
+            placeholders = ",".join("?" * len(task_types))
+            type_clause = f" AND task_type IN ({placeholders})"
+            type_params = list(task_types)
+
+        now = _now_iso()
         with self._conn() as conn:
-            row = conn.execute(
-                """
-                SELECT * FROM task_queue
-                WHERE status = 'pending'
-                ORDER BY created_at ASC
-                LIMIT 1
-                """
-            ).fetchone()
-            if not row:
+            # Single-statement atomic claim: the inner SELECT and outer UPDATE
+            # execute as one serialised write operation in SQLite WAL mode,
+            # so two workers cannot claim the same task.
+            affected = conn.execute(
+                f"""
+                UPDATE task_queue
+                SET status = 'running', started_at = ?, attempts = attempts + 1
+                WHERE task_id = (
+                    SELECT task_id FROM task_queue
+                    WHERE status = 'pending'{type_clause}
+                    ORDER BY created_at ASC
+                    LIMIT 1
+                )
+                """,
+                [now, *type_params],
+            ).rowcount
+
+            if not affected:
                 return None
-            now = _now_iso()
-            conn.execute(
-                "UPDATE task_queue SET status = 'running', started_at = ?, "
-                "attempts = attempts + 1 WHERE task_id = ?",
-                (now, row["task_id"]),
-            )
-            task = dict(row)
-            task["status"] = "running"
-            task["started_at"] = now
-            task["attempts"] = (row["attempts"] or 0) + 1
-            task["payload"] = _json.loads(task.get("payload_json") or "{}")
-            return task
+
+            # Retrieve the row we just claimed, identified by the timestamp we set.
+            # LIMIT 1 guards against the (extremely unlikely) same-millisecond edge case.
+            row = conn.execute(
+                f"""
+                SELECT * FROM task_queue
+                WHERE status = 'running' AND started_at = ?{type_clause}
+                ORDER BY started_at DESC
+                LIMIT 1
+                """,
+                [now, *type_params],
+            ).fetchone()
+
+        if not row:
+            return None
+
+        task = dict(row)
+        task["payload"] = _json.loads(task.get("payload_json") or "{}")
+        return task
 
     def complete_task(
         self,

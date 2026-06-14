@@ -36,4 +36,23 @@ services:
         condition: service_healthy
     restart: unless-stopped
     deploy:
-      replicas: 1               # task_queue is single-worker; do not scale up
+      replicas: 1               # fast lane — job_report + fit_report
+    environment:
+      - WORKER_TASK_TYPES=job_report,fit_report
+
+  agent-worker:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.worker
+    volumes:
+      - ../data:/app/data       # same data volume as api and worker
+    env_file:
+      - ../.env
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      replicas: 1               # agent lane — one search_run at a time
+    environment:
+      - WORKER_TASK_TYPES=search_run
