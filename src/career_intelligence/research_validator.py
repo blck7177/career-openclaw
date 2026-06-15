@@ -67,9 +67,11 @@ def _real_fetch_hashes(
     layer_a_count = 0
     for tc in tool_calls:
         if tc.get("tool") == "web_fetch":
-            layer_a_count += 1
             url = (tc.get("url") or "").strip()
+            # Only a fetch with a real URL counts as Layer A evidence; a
+            # URL-less entry carries no provenance and must not inflate the count.
             if url:
+                layer_a_count += 1
                 hashes.add(url_hash(url))
 
     for entry in fetch_ledger:

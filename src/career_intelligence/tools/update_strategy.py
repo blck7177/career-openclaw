@@ -14,7 +14,7 @@ import click
 
 from career_intelligence.app_state.context import DEV_CTX
 from career_intelligence.app_state.workspace_paths import get_workspace_paths
-from career_intelligence.strategy_state import update_state
+from career_intelligence.strategy_state import PATCH_FIELDS, update_state
 
 WORKSPACE_ROOT = get_workspace_paths(DEV_CTX.workspace_id).root
 
@@ -59,12 +59,7 @@ def main(run_id: str, patch_file: str, fmt: str) -> None:
         click.echo(json.dumps({"error": "Patch file must be a JSON object."}))
         sys.exit(1)
 
-    unknown = set(patch.keys()) - {
-        "effective_sources", "avoid_sources",
-        "effective_query_patterns", "avoid_query_patterns",
-        "coverage_by_workstream", "key_learnings",
-        "recommended_next_searches",
-    }
+    unknown = set(patch.keys()) - set(PATCH_FIELDS)
     if unknown:
         click.echo(json.dumps({"error": f"Unknown patch fields: {sorted(unknown)}", "allowed_fields": _PATCH_FIELDS}))
         sys.exit(1)

@@ -79,7 +79,8 @@ def _patches(workspace_root: Path, fake_invoke, pipeline_result=None):
         patch.object(agent_service.agent_gateway, "invoke", fake_invoke),
         patch("career_intelligence.services.agent_service.run_processing_pipeline",
               return_value=pipeline_result or {"jobs_fetched": 1, "jobs_saved": 1, "jobs_failed": 0}),
-        patch.object(agent_service, "_reflect_turn", return_value={}),
+        patch.object(agent_service, "_run_reflect",
+                     return_value={"reflected": True, "patch_applied": False}),
     ]
 
 
@@ -133,3 +134,78 @@ def test_gateway_error_wrapped_as_agent_run_error(workspace_root: Path):
 
     with pytest.raises(AgentRunError):
         _run(_patches(workspace_root, _boom))
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 bounded reflect: agent writes a patch; worker validates + applies it.
+# ---------------------------------------------------------------------------
+
+
+def _reflect_invoke_factory(patch_obj, *, write_report=True):
+    def _fake_invoke(inv) -> AgentRunResult:
+        patch_path, report_path = inv.expected_outputs
+        patch_path.parent.mkdir(parents=True, exist_ok=True)
+        if patch_obj is not None:
+            patch_path.write_text(json.dumps(patch_obj), encoding="utf-8")
+        if write_report:
+            report_path.write_text("# Reflection\nlearned things", encoding="utf-8")
+        return AgentRunResult(
+            status="complete",
+            turns_used=1,
+            outputs_present=[p for p in inv.expected_outputs if p.exists()],
+            outputs_missing=[p for p in inv.expected_outputs if not p.exists()],
+            tool_calls=[],
+            raw_outputs=[],
+            raw_log_path=None,
+        )
+    return _fake_invoke
+
+
+def test_reflect_applies_valid_patch(workspace_root: Path, tmp_path: Path):
+    session_root = tmp_path / "runs" / "s1"
+    session_root.mkdir(parents=True)
+    (session_root / "run_summary.md").write_text("summary", encoding="utf-8")
+    patch_obj = {"key_learnings": ["greenhouse works"], "avoid_sources": ["citi.com — 404"]}
+
+    with patch.object(agent_service.agent_gateway, "invoke",
+                      _reflect_invoke_factory(patch_obj)):
+        out = agent_service._run_reflect(
+            session_id="s1", workspace_root=workspace_root,
+            session_root=session_root, repo_root=workspace_root,
+        )
+
+    assert out["patch_applied"] is True
+    state = json.loads((workspace_root / "strategy_state.json").read_text())
+    assert "greenhouse works" in state["key_learnings"]
+    assert state["last_run_id"] == "s1"
+    assert state["runs_completed"] == 1
+
+
+def test_reflect_rejects_unknown_field_without_writing_state(workspace_root: Path, tmp_path: Path):
+    session_root = tmp_path / "runs" / "s2"
+    session_root.mkdir(parents=True)
+
+    with patch.object(agent_service.agent_gateway, "invoke",
+                      _reflect_invoke_factory({"bogus_field": 1})):
+        out = agent_service._run_reflect(
+            session_id="s2", workspace_root=workspace_root,
+            session_root=session_root, repo_root=workspace_root,
+        )
+
+    assert out["patch_applied"] is False
+    assert not (workspace_root / "strategy_state.json").exists()
+
+
+def test_reflect_no_patch_file_is_noop(workspace_root: Path, tmp_path: Path):
+    session_root = tmp_path / "runs" / "s3"
+    session_root.mkdir(parents=True)
+
+    with patch.object(agent_service.agent_gateway, "invoke",
+                      _reflect_invoke_factory(None, write_report=True)):
+        out = agent_service._run_reflect(
+            session_id="s3", workspace_root=workspace_root,
+            session_root=session_root, repo_root=workspace_root,
+        )
+
+    assert out["patch_applied"] is False
+    assert not (workspace_root / "strategy_state.json").exists()

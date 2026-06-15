@@ -19,7 +19,13 @@
 
 ## Default Workflow Trigger（强制行为规则）
 
-**任何涉及"搜索岗位"、"找工作"、"发现职位"的请求，必须严格按以下顺序执行，不得跳过：**
+> ⚠️ **适用范围**：本节仅适用于 legacy/手动的 `career-intel` monolith agent。
+> 生产环境的 bounded agents（`career-search-agent` / `career-research` /
+> `career-reflect-agent`）由平台 worker 编排，各自只执行自己的 bounded skill，
+> **不**走本节的全流程触发——它们应忽略本节，遵循各自的 skill 与
+> `protocols/AGENT_IO_CONTRACT.md`。
+
+**任何涉及"搜索岗位"、"找工作"、"发现职位"的请求（career-intel 手动场景），必须严格按以下顺序执行，不得跳过：**
 
 1. 调用 `career-research-orchestrator` skill，启动完整 Search → Process → Reflect workflow
 2. 用 `./wrappers/career_search_session start` 开启一个**新的** search session（不复用历史 session）

@@ -1,7 +1,9 @@
 # Agent I/O Contract
 
-> 适用于经 `services/agent_gateway.py` 调用的 bounded agents：
-> `career-search-agent` / `career-research` / `career-reflect-agent`。
+> 适用于经 `services/agent_gateway.py` 调用的 bounded agents（均已上线）：
+> `career-search-agent`、`career-research`、`career-reflect-agent`。
+> 三条生产链路都是 worker 编排 + bounded agent；legacy monolith `career-intel`
+> 已退出生产，仅保留注册供手动/调试使用。
 
 ## 核心边界
 
@@ -27,6 +29,11 @@ artifact 登记、报告生成、数据库写入。agent 只负责：bounded too
 3. **Run log**：gateway 把每轮解析后的 agent JSON 输出 + 解析出的 `tool_calls` 落到
    `run_log_path`。`tool_calls`（真实 `web_search` / `web_fetch` 调用）是**反捏造校验的
    ground truth**——agent 不调用就不会出现在 log 里，无法伪造。
+   > tool_calls 来自 OpenClaw 的 **session 消息日志**（`meta.agentMeta.sessionFile` 指向的
+   > `.jsonl`）里 `content[].type == "toolCall"` 的真实调用，**不是** `--json` stdout 里的工具
+   > schema 清单（`meta.systemPromptReport`，那只是"能用哪些工具"，不是"调用了什么"）。
+   > 由于 `--local` 复用并 append 同一个 per-agent session，解析只取**最后一条 user 消息之后**
+   > 的调用，避免把历史轮次/历史 run 的调用计入本轮。
 
 ## `AgentInvocation` / `AgentRunResult`
 
@@ -48,5 +55,5 @@ gateway **不知道** session / candidate / research bundle / 任何校验规则
 | Agent | expected_outputs | 后续 fixed code |
 |---|---|---|
 | career-research | `research_notes.md`、`research_sources.json` | research_validator → analysis_service |
-| career-search-agent | `coverage_report.md`（+ 增量 `candidate_pool.jsonl`） | provenance 校验（web_search tool_calls / queries_run）→ worker end_session → discovery pipeline |
-| career-reflect-agent（Phase 3） | `strategy_patch.json`、`reflection_report.md` | worker validated applier |
+| career-search-agent | `coverage_draft.md`（+ 增量 `candidate_pool.jsonl`） | provenance 校验（web_search tool_calls / queries_run）→ worker end_session（把 `coverage_draft.md` 提升为 run 目录下的 `coverage_report.md`）→ discovery pipeline |
+| career-reflect-agent | `strategy_patch.json`、`reflection_report.md` | `strategy_state.apply_strategy_patch`（worker 校验字段 + 落库 strategy_state.json；schema: `schemas/strategy_patch.schema.json`）|

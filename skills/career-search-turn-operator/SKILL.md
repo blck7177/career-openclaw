@@ -31,7 +31,7 @@ Worker owns workflow + session lifecycle.  Agent owns bounded search action.  Se
   "max_queries": 30,
   "max_pages": 40,
   "expected_output_paths": {
-    "coverage_report": ".../agent_work/drafts/coverage_report.md"
+    "coverage_draft": ".../runs/<session_id>/coverage_draft.md"
   }
 }
 ```
@@ -60,8 +60,9 @@ Worker owns workflow + session lifecycle.  Agent owns bounded search action.  Se
 
 每 5 query 后看一次 `career_search_status` 自评方向（见 SEARCH_STRATEGY_PROTOCOL.md）。
 
-### Step 3：写 coverage_report（结束标志）
-满足任一停止条件后，把 `coverage_report.md` 写到 spec 的 `expected_output_paths.coverage_report` 路径。
+### Step 3：写 coverage draft（结束标志）
+满足任一停止条件后，把 coverage draft 写到 spec 的 `expected_output_paths.coverage_draft` 路径
+（文件名 `coverage_draft.md`）。平台的 end_session 会把它提升为 run 目录下的 `coverage_report.md`。
 **写完即结束你的工作，不要再做别的。**
 
 ## Stop Conditions（任一满足）
@@ -78,5 +79,5 @@ Worker owns workflow + session lifecycle.  Agent owns bounded search action.  Se
 - 不能登录平台、绕过 paywall；不把搜索结果页 URL 当 JD URL 入池
 
 ## 完成标志
-`coverage_report.md` 已写到 spec 指定路径，且 candidate_pool 里的每个候选都来自真实 `web_search` + `web_fetch`
+`coverage_draft.md` 已写到 spec 指定路径，且 candidate_pool 里的每个候选都来自真实 `web_search` + `web_fetch`
 （平台会用 run log 里的真实 tool-call 做反捏造校验）。

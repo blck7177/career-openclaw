@@ -41,7 +41,12 @@ cp .env.example .env
 
 ---
 
-### 模式一：Agent / CLI 流程
+### 模式一：Agent / CLI 流程（legacy / 手动调试）
+
+> ⚠️ 这是 legacy monolith 路径，由 `career-intel` agent 手动驱动，**已退出生产**。
+> 生产环境的 discovery（search → process → reflect）全部由 worker 编排、走 bounded agents
+> （`career-search-agent` / `career-research` / `career-reflect-agent`），入口见「模式二 Web 平台」
+> 或 `POST /api/operator/agent-runs`。本节仅用于本地手动跑数 / 调试。
 
 配置 exec-approvals（让 OpenClaw 信任 wrappers）：
 
@@ -169,10 +174,13 @@ career-openclaw/
 │   └── tools/                       ← CLI adapter（wrappers 的实际实现）
 │
 ├── skills/                          ← OpenClaw skills（agent 工作模式）
-│   ├── career-research-orchestrator/SKILL.md
-│   ├── career-search-operator/SKILL.md
-│   ├── career-run-processor/SKILL.md
-│   └── career-strategy-reviewer/SKILL.md
+│   ├── career-search-turn-operator/SKILL.md   ← career-search-agent（生产 bounded 搜索）
+│   ├── career-job-research-operator/SKILL.md  ← career-research（生产 bounded 研究）
+│   ├── career-reflect-operator/SKILL.md       ← career-reflect-agent（生产 bounded 复盘）
+│   ├── career-research-orchestrator/SKILL.md  ← career-intel（legacy/debug 全流程编排）
+│   ├── career-search-operator/SKILL.md        ← career-intel（legacy/debug 搜索）
+│   ├── career-run-processor/SKILL.md          ← career-intel（legacy/debug 处理）
+│   └── career-strategy-reviewer/SKILL.md      ← career-intel（legacy/debug 策略复盘）
 │
 ├── protocols/                       ← 行为规范和领域知识（human-owned）
 │   ├── PROJECT_PROTOCOL.md

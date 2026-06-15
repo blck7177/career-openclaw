@@ -15,6 +15,25 @@ from typing import Any
 
 STRATEGY_STATE_VERSION = "1.0.0"
 
+# The only fields a reflect patch may contain. Shared by the deterministic
+# applier (apply_strategy_patch) and the career_update_strategy CLI so the two
+# never drift. Anything outside this set is rejected.
+PATCH_FIELDS = frozenset(
+    {
+        "effective_sources",
+        "avoid_sources",
+        "effective_query_patterns",
+        "avoid_query_patterns",
+        "coverage_by_workstream",
+        "key_learnings",
+        "recommended_next_searches",
+    }
+)
+
+
+class StrategyPatchError(ValueError):
+    """Raised when a reflect strategy patch is malformed or has unknown fields."""
+
 _DEFAULT_STATE: dict[str, Any] = {
     "version": STRATEGY_STATE_VERSION,
     "last_updated": None,
@@ -119,3 +138,27 @@ def update_state(
         json.dump(state, f, indent=2, ensure_ascii=False)
 
     return state
+
+
+def apply_strategy_patch(
+    workspace_root: Path,
+    run_id: str,
+    patch: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Validate a reflect-produced strategy patch, then merge it into the state.
+
+    This is the deterministic, worker-owned applier for the bounded
+    career-reflect-agent: the agent only writes strategy_patch.json; the
+    platform validates the shape here and is the sole writer of
+    strategy_state.json (Agent owns bounded action, Service owns persistence).
+
+    Raises:
+        StrategyPatchError — patch is not an object or contains unknown fields.
+    """
+    if not isinstance(patch, dict):
+        raise StrategyPatchError("strategy patch must be a JSON object")
+    unknown = set(patch.keys()) - set(PATCH_FIELDS)
+    if unknown:
+        raise StrategyPatchError(f"unknown patch fields: {sorted(unknown)}")
+    return update_state(workspace_root, run_id, patch)

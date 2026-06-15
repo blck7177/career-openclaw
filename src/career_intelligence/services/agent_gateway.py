@@ -2,7 +2,7 @@
 Agent Gateway — generic bounded-agent invocation for the worker.
 
 Wraps the OpenClaw subprocess interface so worker-side services can invoke any
-bounded agent (career-search-agent / career-research / career-reflect-agent)
+bounded agent (career-search-agent, career-research, career-reflect-agent)
 through a single contract:
 
     worker writes an input_spec → invoke() drives the agent turn(s) → returns an
@@ -135,46 +135,106 @@ def _run_agent_turn(
     return {"raw_output": stdout[:500], "exit_code": proc.returncode}
 
 
-def _find_url(node: dict[str, Any]) -> str:
-    """Best-effort URL extraction from a tool-call node."""
-    for key in ("url", "uri", "link", "target"):
-        val = node.get(key)
-        if isinstance(val, str) and val.startswith("http"):
-            return val
-    args = node.get("args") or node.get("input") or node.get("arguments")
+def _tool_call_from_content_item(item: Any) -> dict[str, Any] | None:
+    """
+    Map one assistant-message content item to a web tool call, or None.
+
+    Only genuine `{"type": "toolCall"}` entries count. URL is read from the
+    call's arguments (web_fetch → url, web_search → query). This deliberately
+    does NOT match a tool *schema* descriptor (which has no `type: toolCall`
+    and no arguments), so the system-prompt tool catalogue can never pose as a
+    real call.
+    """
+    if not isinstance(item, dict) or item.get("type") != "toolCall":
+        return None
+    raw_name = item.get("name") or item.get("tool")
+    if not isinstance(raw_name, str):
+        return None
+    alias = _WEB_TOOL_ALIASES.get(raw_name.strip().lower())
+    if not alias:
+        return None
+    args = item.get("arguments") or item.get("args") or item.get("input")
+    url = ""
     if isinstance(args, dict):
-        for key in ("url", "uri", "link", "query", "q"):
+        for key in ("url", "uri", "link", "target", "query", "q"):
             val = args.get(key)
-            if isinstance(val, str):
-                return val
-    return ""
+            if isinstance(val, str) and val.strip():
+                url = val.strip()
+                break
+    return {"tool": alias, "url": url}
 
 
-def _extract_tool_calls(output: Any) -> list[dict[str, Any]]:
+def _session_file_from_output(output: Any) -> Path | None:
+    """Extract `meta.agentMeta.sessionFile` (the per-turn message log) if present."""
+    if not isinstance(output, dict):
+        return None
+    meta = output.get("meta")
+    agent_meta = meta.get("agentMeta") if isinstance(meta, dict) else None
+    session_file = agent_meta.get("sessionFile") if isinstance(agent_meta, dict) else None
+    if isinstance(session_file, str) and session_file.strip():
+        return Path(session_file)
+    return None
+
+
+def _extract_tool_calls_from_session(session_file: Path) -> list[dict[str, Any]]:
     """
-    Recursively scan an agent JSON output for web_search / web_fetch tool calls.
+    Ground-truth web tool calls for the *most recent turn* in a session log.
 
-    This is the fabrication ground-truth: an agent that never calls web_fetch
-    cannot produce these entries (it does not control the run log). The exact
-    OpenClaw JSON shape is not contractually fixed, so this scan is defensive —
-    it matches any dict that names a known web tool.
+    This is the fabrication ground-truth: an agent that never calls web_fetch /
+    web_search cannot produce these entries (it does not author the session
+    log). Two subtleties drive the implementation:
+
+    1. OpenClaw `--local` resumes a persistent per-agent session and *appends*
+       each turn, so the jsonl accumulates across turns and across runs. We
+       scope to the last user message (the message this turn just sent) and only
+       collect tool calls emitted after it — otherwise stale calls from earlier
+       turns/runs would be counted.
+    2. Real calls live in assistant-message `content[].type == "toolCall"`
+       items, NOT in the `--json` stdout summary (whose only tool reference is
+       the static schema catalogue under `meta.systemPromptReport`).
     """
+    try:
+        raw_lines = session_file.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+
+    records: list[dict[str, Any]] = []
+    for line in raw_lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(rec, dict):
+            records.append(rec)
+
+    # Boundary: start after the last user message (= the turn we just sent).
+    start = 0
+    for idx, rec in enumerate(records):
+        msg = rec.get("message")
+        if (
+            rec.get("type") == "message"
+            and isinstance(msg, dict)
+            and msg.get("role") == "user"
+        ):
+            start = idx + 1
+
     found: list[dict[str, Any]] = []
-
-    def walk(node: Any) -> None:
-        if isinstance(node, dict):
-            raw_name = node.get("tool") or node.get("name") or node.get("tool_name")
-            if isinstance(raw_name, str):
-                alias = _WEB_TOOL_ALIASES.get(raw_name.strip().lower())
-                if alias:
-                    found.append({"tool": alias, "url": _find_url(node)})
-            for value in node.values():
-                walk(value)
-        elif isinstance(node, list):
-            for item in node:
-                walk(item)
-
-    walk(output)
+    for rec in records[start:]:
+        if rec.get("type") != "message":
+            continue
+        msg = rec.get("message")
+        if not isinstance(msg, dict) or msg.get("role") != "assistant":
+            continue
+        content = msg.get("content")
+        if not isinstance(content, list):
+            continue
+        for item in content:
+            tc = _tool_call_from_content_item(item)
+            if tc:
+                found.append(tc)
     return found
 
 
@@ -223,7 +283,15 @@ def invoke(inv: AgentInvocation) -> AgentRunResult:
             ) from exc
 
         raw_outputs.append(output)
-        tool_calls.extend(_extract_tool_calls(output))
+        session_file = _session_file_from_output(output)
+        if session_file is not None and session_file.exists():
+            tool_calls.extend(_extract_tool_calls_from_session(session_file))
+        else:
+            logger.warning(
+                "Agent [%s] turn %d: no readable sessionFile in output meta — "
+                "tool-call ground truth unavailable for this turn",
+                inv.agent_id, turn,
+            )
 
         if inv.expected_outputs and all(p.exists() for p in inv.expected_outputs):
             status = "complete"

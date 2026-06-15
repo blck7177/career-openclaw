@@ -2,7 +2,7 @@
 Agent Service — drives OpenClaw for job discovery sessions.
 
 Worker-side orchestration of job discovery. The worker owns the session
-lifecycle; the bounded career-search-agent only runs search turns. Workflow:
+lifecycle; the bounded agents only run their own bounded action. Workflow:
 
   1. start_session()       — Python direct call (creates run directory + run_config.yaml)
   2. agent_gateway.invoke  — drive career-search-agent (search turns only) via the
@@ -10,21 +10,25 @@ lifecycle; the bounded career-search-agent only runs search turns. Workflow:
   3. Provenance validation — abort if 0 web_search calls AND queries_run == 0
   4. end_session()         — worker finalizes the session (agent no longer ends it)
   5. run_processing_pipeline() — deterministic, called directly in Python
-  6. Reflect turn          — legacy career-intel subprocess call for strategy update
+  6. Reflect turn          — drive the bounded career-reflect-agent (it only writes
+                             strategy_patch.json + reflection_report.md); the worker
+                             validates the patch and applies it to strategy_state.json
+                             (Service owns persistence; agent never writes final state)
 
 Environment overrides (all optional):
   AGENT_TURN_TIMEOUT_S      Per-turn subprocess timeout in seconds  (default 180)
-  AGENT_RUN_MAX_TURNS       Max agent turns per session             (default 40)
+  AGENT_RUN_MAX_TURNS       Max search agent turns per session      (default 40)
+  AGENT_REFLECT_MAX_TURNS   Max reflect agent turns                 (default 3)
   AGENT_RUN_WALL_CLOCK_S    Total wall-clock limit in seconds       (default 3600)
   OPENCLAW_AGENT_ID         Search agent id to invoke               (default career-search-agent)
-  OPENCLAW_REFLECT_AGENT_ID Reflect agent id to invoke              (default career-intel)
+  OPENCLAW_REFLECT_AGENT_ID Reflect agent id to invoke              (default career-reflect-agent)
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import os
-import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +45,10 @@ from career_intelligence.search_session import (
     session_dir,
     start_session,
 )
+from career_intelligence.strategy_state import (
+    StrategyPatchError,
+    apply_strategy_patch,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -50,11 +58,14 @@ logger = logging.getLogger(__name__)
 
 AGENT_TURN_TIMEOUT_S = int(os.environ.get("AGENT_TURN_TIMEOUT_S", "180"))
 AGENT_RUN_MAX_TURNS = int(os.environ.get("AGENT_RUN_MAX_TURNS", "40"))
+AGENT_REFLECT_MAX_TURNS = int(os.environ.get("AGENT_REFLECT_MAX_TURNS", "3"))
 AGENT_RUN_WALL_CLOCK_S = int(os.environ.get("AGENT_RUN_WALL_CLOCK_S", "3600"))
-# Discovery now runs on the bounded career-search-agent (Phase 2). The reflect
-# turn still runs on the legacy career-intel until career-reflect-agent (Phase 3).
+# All three production lanes are bounded agents driven through agent_gateway:
+# discovery → career-search-agent, reflect → career-reflect-agent. The legacy
+# monolith career-intel is no longer used in production (kept registered for
+# manual/debug runs only).
 _OPENCLAW_AGENT_ID = os.environ.get("OPENCLAW_AGENT_ID", "career-search-agent")
-_REFLECT_AGENT_ID = os.environ.get("OPENCLAW_REFLECT_AGENT_ID", "career-intel")
+_REFLECT_AGENT_ID = os.environ.get("OPENCLAW_REFLECT_AGENT_ID", "career-reflect-agent")
 
 
 # ---------------------------------------------------------------------------
@@ -75,19 +86,20 @@ class AgentRunError(Exception):
 # ---------------------------------------------------------------------------
 
 
-def _reflect_turn(message: str, repo_root: Path) -> dict[str, Any]:
-    """
-    Send one message to the reflect agent (legacy career-intel until Phase 3).
-
-    Raises subprocess.TimeoutExpired on per-turn timeout. On non-zero exit or
-    unparseable JSON, returns a dict with raw_output/exit_code.
-    """
-    return agent_gateway._run_agent_turn(
-        agent_id=_REFLECT_AGENT_ID,
-        message=message,
-        repo_root=repo_root,
-        timeout_s=AGENT_TURN_TIMEOUT_S,
-    )
+def _reflect_input_spec(
+    session_id: str, run_summary_path: Path, coverage_path: Path,
+    strategy_patch_path: Path, reflection_report_path: Path,
+) -> dict[str, Any]:
+    """Structured task spec the bounded reflect agent reads (instead of a long prompt)."""
+    return {
+        "session_id": session_id,
+        "run_summary_path": str(run_summary_path),
+        "coverage_report_path": str(coverage_path),
+        "expected_output_paths": {
+            "strategy_patch": str(strategy_patch_path),
+            "reflection_report": str(reflection_report_path),
+        },
+    }
 
 
 def _search_input_spec(
@@ -102,7 +114,7 @@ def _search_input_spec(
         "max_queries": max_queries,
         "max_pages": max_pages,
         "expected_output_paths": {
-            "coverage_report": str(coverage_path),
+            "coverage_draft": str(coverage_path),
         },
     }
 
@@ -119,19 +131,95 @@ def _search_prompt(session_id: str, input_spec_path: Path) -> str:
         f"--session-id {session_id} for all wrapper calls.\n\n"
         "REQUIRED: execute real web_search before career_log_candidates "
         "(candidates are REJECTED when queries_run=0).\n\n"
-        "When done (>=20 candidates or budget exhausted), write coverage_report.md "
-        "to the path in the spec and STOP."
+        "When done (>=20 candidates or budget exhausted), write the coverage draft "
+        "(coverage_draft.md) to the path in the spec and STOP. The platform's "
+        "end_session promotes it to the run's coverage_report.md."
     )
 
 
-def _reflect_prompt(session_id: str) -> str:
+def _reflect_prompt(session_id: str, input_spec_path: Path) -> str:
     return (
-        f"Processing pipeline for session {session_id} is complete. "
-        f"Please read run_summary.md for session {session_id}, then call "
-        f"career_update_strategy to record this run's learnings into strategy_state.json. "
-        f"Focus on: which sources produced real JDs, which failed, and "
-        f"recommended next search directions."
+        "Read the career-reflect-operator skill, then reflect on an "
+        "ALREADY-COMPLETED discovery run.\n\n"
+        f"Read your task spec from: {input_spec_path}\n"
+        f"  session_id : {session_id}\n\n"
+        "Read run_summary.md + coverage_report.md, diagnose source failures and "
+        "workstream coverage, then write strategy_patch.json and "
+        "reflection_report.md to the exact paths in the spec.\n\n"
+        "Do NOT call career_update_strategy and do NOT write strategy_state.json — "
+        "the platform validates your patch and persists it. When both files are "
+        "written, STOP."
     )
+
+
+def _run_reflect(
+    *,
+    session_id: str,
+    workspace_root: Path,
+    session_root: Path,
+    repo_root: Path,
+) -> dict[str, Any]:
+    """
+    Drive the bounded career-reflect-agent, then deterministically apply its
+    strategy patch. The agent only writes strategy_patch.json + reflection_report.md;
+    this function (the worker) is the sole writer of strategy_state.json.
+
+    Best-effort: the caller treats any exception as non-fatal. Returns a small
+    summary {reflected, patch_applied[, runs_completed]}.
+    """
+    run_summary_path = session_root / "run_summary.md"
+    coverage_path = session_root / "coverage_report.md"
+    strategy_patch_path = session_root / "strategy_patch.json"
+    reflection_report_path = session_root / "reflection_report.md"
+    input_spec_path = session_root / "reflect_input.json"
+    run_log_path = session_root / "reflect_run_log.json"
+
+    invocation = agent_gateway.AgentInvocation(
+        agent_id=_REFLECT_AGENT_ID,
+        prompt=_reflect_prompt(session_id, input_spec_path),
+        repo_root=repo_root,
+        expected_outputs=[strategy_patch_path, reflection_report_path],
+        input_spec=_reflect_input_spec(
+            session_id, run_summary_path, coverage_path,
+            strategy_patch_path, reflection_report_path,
+        ),
+        input_spec_path=input_spec_path,
+        run_log_path=run_log_path,
+        turn_timeout_s=AGENT_TURN_TIMEOUT_S,
+        max_turns=AGENT_REFLECT_MAX_TURNS,
+        wall_clock_s=AGENT_RUN_WALL_CLOCK_S,
+    )
+
+    run_result = agent_gateway.invoke(invocation)
+
+    if not strategy_patch_path.exists():
+        logger.warning(
+            "Reflect for %s produced no strategy_patch.json (status=%s) — "
+            "strategy state unchanged", session_id, run_result.status,
+        )
+        return {"reflected": True, "patch_applied": False}
+
+    try:
+        patch = json.loads(strategy_patch_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning("Reflect patch for %s unreadable: %s", session_id, exc)
+        return {"reflected": True, "patch_applied": False}
+
+    try:
+        updated = apply_strategy_patch(workspace_root, session_id, patch)
+    except StrategyPatchError as exc:
+        logger.warning("Reflect patch for %s rejected: %s", session_id, exc)
+        return {"reflected": True, "patch_applied": False}
+
+    logger.info(
+        "Reflect applied for %s: runs_completed=%d",
+        session_id, updated.get("runs_completed", 0),
+    )
+    return {
+        "reflected": True,
+        "patch_applied": True,
+        "runs_completed": updated.get("runs_completed", 0),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -268,12 +356,18 @@ def run_discovery_session(
         pipeline_result.get("jobs_failed", 0),
     )
 
-    # 6. Reflect turn — agent writes strategy patch (best-effort, non-blocking)
+    # 6. Reflect turn — bounded career-reflect-agent writes a strategy patch;
+    # the worker validates + applies it (best-effort, never fatal to the run).
     try:
-        _reflect_turn(_reflect_prompt(session_id), repo_root)
-        logger.info("Reflect turn complete for session %s", session_id)
-    except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as exc:
-        logger.warning("Reflect turn failed (non-fatal): %s", exc)
+        _run_reflect(
+            session_id=session_id,
+            workspace_root=workspace_root,
+            session_root=session_root,
+            repo_root=repo_root,
+        )
+        logger.info("Reflect complete for session %s", session_id)
+    except Exception as exc:  # noqa: BLE001 — reflect is best-effort, never fatal
+        logger.warning("Reflect failed (non-fatal): %s", exc)
 
     return {
         "session_id": session_id,
