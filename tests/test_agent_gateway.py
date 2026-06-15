@@ -46,6 +46,16 @@ def _polluted_meta(session_file: Path) -> dict:
     }
 
 
+def test_unwrap_gateway_envelope():
+    """Gateway-routed output wraps the result in an envelope; embedded does not.
+    Both must normalise to the inner {payloads, meta} object."""
+    inner = {"payloads": [{"text": "ok"}], "meta": {"agentMeta": {"sessionFile": "/x.jsonl"}}}
+    envelope = {"runId": "r1", "status": "ok", "summary": "completed", "result": inner}
+    assert agent_gateway._unwrap_gateway_envelope(envelope) == inner
+    # embedded shape (already inner) passes through untouched
+    assert agent_gateway._unwrap_gateway_envelope(inner) == inner
+
+
 def test_tool_schema_entry_is_not_a_call():
     """A tool *schema* descriptor (no type:toolCall, no arguments) must never
     be mistaken for a real call."""
@@ -93,7 +103,7 @@ def test_invoke_uses_session_and_ignores_schema_pollution(tmp_path: Path):
     log_path = tmp_path / "log.json"
     session = tmp_path / "session.jsonl"
 
-    def _fake_turn(agent_id, message, repo_root, timeout_s):  # noqa: ARG001
+    def _fake_turn(agent_id, message, repo_root, timeout_s, session_key=None):  # noqa: ARG001
         _write_session(session, [
             _user("do it"),
             _msg("assistant", _toolcall("web_fetch", url="https://flex.com/x")),
@@ -127,7 +137,7 @@ def test_invoke_uses_session_and_ignores_schema_pollution(tmp_path: Path):
 def test_invoke_incomplete_when_outputs_missing(tmp_path: Path):
     missing = tmp_path / "never.json"
 
-    def _fake_turn(agent_id, message, repo_root, timeout_s):  # noqa: ARG001
+    def _fake_turn(agent_id, message, repo_root, timeout_s, session_key=None):  # noqa: ARG001
         return {"raw_output": "nothing written"}
 
     inv = AgentInvocation(
@@ -149,7 +159,7 @@ def test_invoke_per_turn_timeout_continues_then_completes(tmp_path: Path):
     out_file = tmp_path / "out.json"
     calls = {"n": 0}
 
-    def _fake_turn(agent_id, message, repo_root, timeout_s):  # noqa: ARG001
+    def _fake_turn(agent_id, message, repo_root, timeout_s, session_key=None):  # noqa: ARG001
         calls["n"] += 1
         if calls["n"] == 1:
             raise subprocess.TimeoutExpired(cmd="openclaw", timeout=timeout_s)
@@ -176,7 +186,7 @@ def test_invoke_wall_clock_returns_timeout_without_running(tmp_path: Path):
     out_file = tmp_path / "out.json"
     calls = {"n": 0}
 
-    def _fake_turn(agent_id, message, repo_root, timeout_s):  # noqa: ARG001
+    def _fake_turn(agent_id, message, repo_root, timeout_s, session_key=None):  # noqa: ARG001
         calls["n"] += 1
         return {}
 

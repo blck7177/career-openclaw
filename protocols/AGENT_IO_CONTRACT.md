@@ -50,6 +50,12 @@ gateway **不知道** session / candidate / research bundle / 任何校验规则
 检查 expected_outputs、落 run log。所有业务判断（完成定义、provenance 校验、降级策略、
 持久化）由调用方 service 完成。
 
+> **执行路径**：每轮通过 **OpenClaw Gateway**（`openclaw agent`，**非** `--local`）运行，因为
+> bounded agent 需要可用的 `exec` host 来调 wrapper —— embedded（`--local`）模式没有 exec，
+> agent 会直接拒绝。因此 Gateway daemon 是硬依赖。每次 `invoke()` 用一个新的 `--session-key`
+> 隔离该 run（多轮共享同一 key 以延续上下文）。Gateway 返回的 JSON 外层是
+> `{runId,status,summary,result}`，真实输出在 `result`（gateway 已自动剥壳）。
+
 ## 每个 agent 的输入/输出（落地时补全）
 
 | Agent | expected_outputs | 后续 fixed code |

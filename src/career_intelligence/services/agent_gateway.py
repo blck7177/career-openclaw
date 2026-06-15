@@ -25,6 +25,7 @@ import logging
 import os
 import subprocess
 import time
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -92,14 +93,43 @@ class AgentRunResult:
         return sum(1 for tc in self.tool_calls if tc.get("tool") == "web_fetch")
 
 
+def _unwrap_gateway_envelope(parsed: Any) -> dict[str, Any]:
+    """
+    Normalise the two OpenClaw `--json` output shapes to the inner agent result.
+
+    Routed through the Gateway, `openclaw agent` wraps the result in an envelope:
+        {"runId": ..., "status": "ok", "summary": ..., "result": {payloads, meta}}
+    The embedded (`--local`) path returns the inner `{payloads, meta}` directly.
+    Downstream code only ever wants the inner object (it carries
+    `meta.agentMeta.sessionFile`), so peel the envelope when present.
+    """
+    if (
+        isinstance(parsed, dict)
+        and isinstance(parsed.get("result"), dict)
+        and ("runId" in parsed or "summary" in parsed)
+    ):
+        status = parsed.get("status")
+        if status not in (None, "ok"):
+            logger.warning("Gateway run status=%s summary=%.120s", status, parsed.get("summary"))
+        return parsed["result"]
+    return parsed if isinstance(parsed, dict) else {"raw_output": str(parsed)[:500]}
+
+
 def _run_agent_turn(
     agent_id: str,
     message: str,
     repo_root: Path,
     timeout_s: int,
+    session_key: str,
 ) -> dict[str, Any]:
     """
-    Send one message to an OpenClaw agent, return parsed JSON output.
+    Send one message to an OpenClaw agent (via the Gateway), return parsed output.
+
+    Routed through the Gateway daemon — NOT `--local` — because the bounded
+    agents need a working `exec` host to call their wrappers, which the embedded
+    runner does not provide. `session_key` pins all turns of one invocation to
+    the same session so context carries across turns while staying isolated from
+    other runs.
 
     Raises subprocess.TimeoutExpired if the agent exceeds timeout_s.
     On non-zero exit or unparseable JSON, returns a dict with raw_output/exit_code.
@@ -107,7 +137,7 @@ def _run_agent_turn(
     cmd = [
         "openclaw", "agent",
         "--agent", agent_id,
-        "--local",
+        "--session-key", session_key,
         "--message", message,
         "--json",
     ]
@@ -129,7 +159,7 @@ def _run_agent_turn(
     json_start = stdout.find("{")
     if json_start != -1:
         try:
-            return json.loads(stdout[json_start:])
+            return _unwrap_gateway_envelope(json.loads(stdout[json_start:]))
         except json.JSONDecodeError:
             pass
     return {"raw_output": stdout[:500], "exit_code": proc.returncode}
@@ -261,6 +291,9 @@ def invoke(inv: AgentInvocation) -> AgentRunResult:
     status = "incomplete"
     tool_calls: list[dict[str, Any]] = []
     raw_outputs: list[dict[str, Any]] = []
+    # One fresh session per invocation: every turn shares it (context carries
+    # across turns) while staying isolated from other runs of the same agent.
+    session_key = f"agent:{inv.agent_id}:run-{uuid.uuid4().hex[:12]}"
 
     while turn < inv.max_turns:
         if time.time() - wall_start > inv.wall_clock_s:
@@ -271,7 +304,7 @@ def invoke(inv: AgentInvocation) -> AgentRunResult:
         turn += 1
         try:
             output = _run_agent_turn(
-                inv.agent_id, inv.prompt, inv.repo_root, inv.turn_timeout_s
+                inv.agent_id, inv.prompt, inv.repo_root, inv.turn_timeout_s, session_key
             )
         except subprocess.TimeoutExpired:
             logger.error("Agent [%s] turn %d timed out after %ds", inv.agent_id, turn, inv.turn_timeout_s)
