@@ -136,12 +136,12 @@ def _load_profile_summary(repo_root: Path, profile_name: str) -> str:
 
 
 def _build_catalog_context(catalog_id: str, workspace_root: Path) -> dict[str, Any]:
-    """Deterministic catalog coverage snapshot for the discovery agent.
+    """Deterministic catalog snapshot: job count and recently-seen companies.
 
-    Reuses existing data sources only: the shared job catalog (job count +
-    recently-seen companies) and cross-run strategy_state (workstreams the
-    reflect agent flagged weak/missing). Lets the agent own strategy from the
-    first turn without re-querying the database.
+    Reuses the shared job catalog only. Coverage gaps and cross-run strategy
+    learnings are passed separately in strategy_context (see
+    _build_strategy_context), so the agent has clean separation between
+    'what is already in the database' and 'what the system has learned'.
     """
     db_dir = get_workspace_paths(catalog_id).db_dir
     jobs = query_jobs(db_dir, limit=10_000)
@@ -154,16 +154,54 @@ def _build_catalog_context(catalog_id: str, workspace_root: Path) -> dict[str, A
         if len(recent_companies) >= 15:
             break
 
-    coverage = read_state(workspace_root).get("coverage_by_workstream", {}) or {}
+    return {
+        "existing_job_count": len(jobs),
+        "recent_companies": recent_companies,
+    }
+
+
+# Top-N caps for strategy_context list fields — prevents agent context bloat
+# while still surfacing the most recent learnings from each category.
+_STRATEGY_CONTEXT_CAPS: dict[str, int] = {
+    "effective_sources": 10,
+    "avoid_sources": 10,
+    "effective_query_patterns": 10,
+    "avoid_query_patterns": 10,
+    "key_learnings": 8,
+    "recommended_next_searches": 5,
+}
+
+
+def _build_strategy_context(workspace_root: Path) -> dict[str, Any]:
+    """Compact cross-run strategy context for the discovery agent.
+
+    Reads strategy_state and returns:
+    - coverage_gaps: workstreams flagged weak/missing by the reflect agent
+    - effective/avoid sources: domains confirmed to work or reliably fail
+    - effective/avoid query patterns: search patterns with known outcomes
+    - key_learnings: most recent cross-run observations
+    - recommended_next_searches: the reflect agent's top priorities for this run
+
+    Each list field is capped at top-N (most recent entries) to avoid bloating
+    the agent context. Union-merged lists in strategy_state grow oldest-first,
+    so slicing from the tail gives the most recent learnings.
+    """
+    state = read_state(workspace_root)
+
+    coverage = state.get("coverage_by_workstream", {}) or {}
     coverage_gaps = sorted(
         ws for ws, status in coverage.items() if status in ("weak", "missing")
     )
 
-    return {
-        "existing_job_count": len(jobs),
-        "recent_companies": recent_companies,
-        "coverage_gaps": coverage_gaps,
-    }
+    ctx: dict[str, Any] = {"coverage_gaps": coverage_gaps}
+    for field, cap in _STRATEGY_CONTEXT_CAPS.items():
+        values = state.get(field) or []
+        if isinstance(values, list) and values:
+            ctx[field] = values[-cap:] if len(values) > cap else list(values)
+        else:
+            ctx[field] = []
+
+    return ctx
 
 
 def _search_input_spec(
@@ -176,15 +214,21 @@ def _search_input_spec(
     coverage_path: Path,
     discovery_notes_path: Path,
     catalog_context: dict[str, Any] | None = None,
+    strategy_context: dict[str, Any] | None = None,
     profile_summary: str = "",
     repo_root: Path | None = None,
 ) -> dict[str, Any]:
     """
     Rich task spec for the autonomous discovery agent.
 
-    Provides search_request context, catalog coverage gaps, source config
-    locations, and budget — so the agent can own strategy from the start
-    without needing to re-query the database.
+    Provides search_request context, catalog snapshot, cross-run strategy
+    context (effective/avoid sources, query patterns, learnings, recommended
+    next searches), source config locations, and budget — so the agent can
+    own strategy from the first turn without re-querying the database.
+
+    catalog_context: database-derived facts (job count, recent companies).
+    strategy_context: reflect-produced learnings (coverage gaps, source
+        health, query effectiveness, key learnings, recommended searches).
     """
     source_context: dict[str, Any] = {}
     if repo_root is not None:
@@ -204,7 +248,11 @@ def _search_input_spec(
             "profile_name": profile_name,
             "profile_summary": profile_summary,
         },
+        # Database-derived: how many jobs already in catalog, recently-seen companies.
         "catalog_context": catalog_context or {},
+        # Reflect-produced: cross-run learnings. Agent should use these to avoid
+        # repeating failed queries/sources and to prioritise weak workstreams.
+        "strategy_context": strategy_context or {},
         "source_context": source_context,
         "budget": {
             "max_queries": max_queries,
@@ -372,10 +420,11 @@ def run_discovery_session(
     input_spec_path = session_root / "agent_input.json"
     run_log_path = session_root / "agent_run_log.json"
 
-    # Give the agent current database coverage + profile context so it can own
-    # discovery strategy from the first turn (Worker provides context; Agent
-    # owns strategy). Both are deterministic reads of existing data sources.
+    # Give the agent current database coverage + cross-run strategy context so
+    # it can own discovery strategy from the first turn without re-querying the
+    # database. Both are deterministic reads of existing data sources.
     catalog_context = _build_catalog_context(catalog_id, workspace_root)
+    strategy_context = _build_strategy_context(workspace_root)
     profile_summary = _load_profile_summary(repo_root, profile_name)
 
     invocation = agent_gateway.AgentInvocation(
@@ -394,6 +443,7 @@ def run_discovery_session(
             coverage_path=coverage_report,
             discovery_notes_path=discovery_notes,
             catalog_context=catalog_context,
+            strategy_context=strategy_context,
             profile_summary=profile_summary,
             repo_root=repo_root,
         ),

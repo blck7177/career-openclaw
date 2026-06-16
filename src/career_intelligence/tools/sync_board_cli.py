@@ -3,7 +3,8 @@ CLI adapter for career_sync_board wrapper.
 
 Usage:
   python -m career_intelligence.tools.sync_board_cli \
-    --source greenhouse --slug schonfeld [--session-id <id>] [--output-format json|summary]
+    --source greenhouse --slug schonfeld [--session-id <id>] [--workspace-id <id>]
+    [--output-format json|summary]
     [--location-filter "New York,NYC,Jersey City"]
     [--title-keywords "risk,analyst,quant,valuation"]
     [--exclude-titles "intern,engineer,marketing,recruiter,hr,legal"]
@@ -11,6 +12,9 @@ Usage:
 
 Syncs active jobs from a company's ATS board and writes them to the
 session's candidate_pool.jsonl. Client-side filters are applied before writing.
+
+--workspace-id must match the workspace_id in the agent task spec so that
+candidates land in the same workspace the worker's pipeline reads from.
 """
 
 from __future__ import annotations
@@ -19,6 +23,8 @@ import argparse
 import json
 import sys
 from pathlib import Path
+
+from career_intelligence.app_state.workspace_paths import resolve_workspace_root
 
 
 def _matches_any(text: str, terms: list[str]) -> bool:
@@ -86,13 +92,27 @@ def main() -> None:
                              'Example: "intern,software engineer,marketing,recruiter,hr,legal"')
     parser.add_argument("--dry-run", action="store_true",
                         help="Preview filter results without writing to candidate_pool")
+    parser.add_argument(
+        "--workspace-id",
+        default=None,
+        help=(
+            "Workspace to write candidates into. Defaults to the catalog workspace "
+            "(CATALOG_WORKSPACE_ID, else dev_default). Pass the workspace_id from "
+            "your task spec so board_sync candidates land in the same workspace "
+            "the worker's pipeline reads from."
+        ),
+    )
     args = parser.parse_args()
 
-    workspace_root = Path(__file__).parent.parent.parent.parent
+    # repo_root is used only for configs (company_boards.yaml lives in the repo).
+    # candidate_pool.jsonl is written to the workspace run directory, which may
+    # differ from the repo root when a non-default workspace_id is active.
+    repo_root = Path(__file__).parent.parent.parent.parent
+    workspace_root = resolve_workspace_root(args.workspace_id)
 
     from career_intelligence.connectors.connector_router import load_company_boards, sync_board
 
-    boards_registry = load_company_boards(workspace_root)
+    boards_registry = load_company_boards(repo_root)
 
     # Validate slug
     if args.slug not in boards_registry:
@@ -149,7 +169,7 @@ def main() -> None:
         print(json.dumps(preview, indent=2, ensure_ascii=False))
         return
 
-    # Determine output path
+    # Determine output path (always inside the workspace, not the repo root).
     if args.session_id:
         out_dir = workspace_root / "runs" / args.session_id
         out_dir.mkdir(parents=True, exist_ok=True)

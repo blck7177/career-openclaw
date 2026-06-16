@@ -2,14 +2,20 @@
 # career_sync_board — sync all active jobs from a company's ATS board
 #
 # Usage:
-#   ./wrappers/career_sync_board --source greenhouse --slug schonfeld [--session-id <id>] [--output-format json|summary]
+#   ./wrappers/career_sync_board --source greenhouse --slug schonfeld \
+#     --session-id <id> --workspace-id <id> [--output-format json|summary]
+#
+# --workspace-id must match the workspace_id in the agent task spec so that
+# board_sync candidates land in the same workspace the worker's pipeline reads.
 #
 # Syncs all published jobs from the company's Greenhouse/Lever/Ashby board
 # and writes them as candidates to the session's candidate_pool.jsonl.
 #
 # Examples:
-#   ./wrappers/career_sync_board --source greenhouse --slug schonfeld
-#   ./wrappers/career_sync_board --source greenhouse --slug schonfeld --session-id 2026-06-10_120000 --output-format json
+#   ./wrappers/career_sync_board --source greenhouse --slug schonfeld \
+#     --session-id 2026-06-10_120000 --workspace-id dev_default
+#   ./wrappers/career_sync_board --source greenhouse --slug schonfeld \
+#     --session-id 2026-06-10_120000 --workspace-id dev_default --dry-run
 #   ./wrappers/career_sync_board --source lever --slug some-company --output-format summary
 set -euo pipefail
 

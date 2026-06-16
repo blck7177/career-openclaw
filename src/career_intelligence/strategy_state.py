@@ -1,9 +1,18 @@
 """
 Cross-run strategy state — persists search learnings across runs.
 
-Stored at db/strategy_state.json.
-Updated by the agent at the end of each run via career_update_strategy.
-Read by the agent at the start of each run via career_read_strategy.
+Stored at <workspace_root>/strategy_state.json.
+
+Write path (worker-owned): after each discovery run, the bounded
+career-reflect-agent writes strategy_patch.json; the worker calls
+apply_strategy_patch() to validate the patch and merge it into
+strategy_state.json. The agent never writes strategy_state.json directly.
+
+Read path (worker-owned): before each discovery run, the worker calls
+read_state() + _build_strategy_context() to build a compact strategy
+context (effective/avoid sources, query patterns, coverage gaps, learnings,
+recommended next searches) which is injected into the agent's task spec.
+The agent reads it from the spec file — it does not call read_state() directly.
 """
 
 from __future__ import annotations
@@ -16,8 +25,9 @@ from typing import Any
 STRATEGY_STATE_VERSION = "1.0.0"
 
 # The only fields a reflect patch may contain. Shared by the deterministic
-# applier (apply_strategy_patch) and the career_update_strategy CLI so the two
-# never drift. Anything outside this set is rejected.
+# applier (apply_strategy_patch) and the strategy_patch_contract.md skill
+# reference so code and agent instructions never drift. Anything outside
+# this set is rejected by apply_strategy_patch.
 PATCH_FIELDS = frozenset(
     {
         "effective_sources",
