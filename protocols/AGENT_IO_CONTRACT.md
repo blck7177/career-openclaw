@@ -1,21 +1,27 @@
 # Agent I/O Contract
 
-> 适用于经 `services/agent_gateway.py` 调用的 bounded agents（均已上线）：
-> `career-search-agent`、`career-research`、`career-reflect-agent`。
-> 三条生产链路都是 worker 编排 + bounded agent；legacy monolith `career-intel`
-> 已退出生产，仅保留注册供手动/调试使用。
+> 适用于经 `services/agent_gateway.py` 调用的三条生产 agent 链路：
+> `career-search-agent`（autonomous discovery）、`career-research`（bounded research）、
+> `career-reflect-agent`（bounded reflection）。
+> Legacy monolith `career-intel` 已退出生产，仅保留注册供手动/调试使用。
 
 ## 核心边界
 
 ```
-Worker owns workflow.
-Agent owns bounded research/reflection action.
-Service owns final artifact and persistence.
+Worker owns lifecycle, session, persistence, and ingestion gate.
+career-search-agent owns discovery strategy inside the run budget.
+career-research owns bounded research for one already-ingested job.
+career-reflect-agent owns bounded reflection after a run.
+Service owns canonical database, final artifacts, and strategy state.
 ```
 
-worker（及其 service）负责：task/session 生命周期、重试、超时、校验、pipeline 步序、
-artifact 登记、报告生成、数据库写入。agent 只负责：bounded tool-use 推理、来源发现、
-证据收集、run 后解释。**agent 不写最终系统状态（DB / MetadataStore / supersede）。**
+worker（及其 service）负责：task/session 生命周期、重试、超时、校验、provenance gate、
+pipeline 步序、artifact 登记、报告生成、数据库写入。**agent 不写最终系统状态（DB / MetadataStore）。**
+
+三类 agent 的边界：
+- `career-search-agent`：autonomous discovery within budget；可产出 raw candidates / source discoveries；不写 canonical DB；不生成 final job report
+- `career-research`：bounded research for one ingested job；可产出 research_notes / source bundle；不写 final job report
+- `career-reflect-agent`：bounded reflection after a run；可 propose strategy_patch；不直接 mutate strategy_state
 
 ## 调用契约（文件式交接）
 
@@ -56,10 +62,20 @@ gateway **不知道** session / candidate / research bundle / 任何校验规则
 > 隔离该 run（多轮共享同一 key 以延续上下文）。Gateway 返回的 JSON 外层是
 > `{runId,status,summary,result}`，真实输出在 `result`（gateway 已自动剥壳）。
 
-## 每个 agent 的输入/输出（落地时补全）
+## 每个 agent 的输入/输出
 
-| Agent | expected_outputs | 后续 fixed code |
+| Agent | expected_outputs（required） | optional outputs | 后续 fixed code |
+|---|---|---|---|
+| career-research | `research_notes.md`、`research_sources.json` | — | research_validator → analysis_service |
+| career-search-agent | `coverage_report.md` | `discovery_notes.md`（新 source 发现记录） | provenance gate（discovery_actions > 0，否则 SearchValidationError）→ worker end_session → discovery pipeline |
+| career-reflect-agent | `strategy_patch.json`、`reflection_report.md` | — | `strategy_state.apply_strategy_patch`（worker 校验字段 + 落库 strategy_state.json；schema: `schemas/strategy_patch.schema.json`）|
+
+## career-search-agent 的 Provenance Gate（三状态）
+
+| 状态 | 条件 | 结果 |
 |---|---|---|
-| career-research | `research_notes.md`、`research_sources.json` | research_validator → analysis_service |
-| career-search-agent | `coverage_draft.md`（+ 增量 `candidate_pool.jsonl`） | provenance 校验（web_search tool_calls / queries_run）→ worker end_session（把 `coverage_draft.md` 提升为 run 目录下的 `coverage_report.md`）→ discovery pipeline |
-| career-reflect-agent | `strategy_patch.json`、`reflection_report.md` | `strategy_state.apply_strategy_patch`（worker 校验字段 + 落库 strategy_state.json；schema: `schemas/strategy_patch.schema.json`）|
+| A — no discovery | discovery_actions==0 AND queries_run==0 | SearchValidationError → run 中止 |
+| B — valid no-yield | discovery_actions>0 AND candidates_captured==0 | 正常 end_session + pipeline（空 pool）|
+| C — candidates present | discovery_actions>0 AND candidates_captured>0 | pipeline admission gate 验证每条候选的 evidence path |
+
+Discovery actions 包括：`web_search`（native tool）、`board_sync`（career_sync_board exec）、`classify_source`（career_classify_source exec）等。Gateway 用两层 parser 解析：native web tools 和 exec wrapper commands。

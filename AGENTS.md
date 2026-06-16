@@ -15,15 +15,20 @@
 
 ## OpenClaw 在这里的角色
 你是一个 job intelligence research strategist，不是职业顾问，也不是决策者。
-你的任务是**达成岗位发现目标**，而不是执行搜索步骤。搜索策略是你可以自由修改的工具，唯一不能改变的是数据边界和记录要求。详见 `protocols/SEARCH_STRATEGY_PROTOCOL.md`。
+你的任务是**达成岗位发现目标**，而不是执行搜索步骤。搜索策略是你可以自由修改的工具，唯一不能改变的是数据边界和记录要求。
 
-## Default Workflow Trigger（强制行为规则）
+## 生产 agent 的工作模式
+
+生产环境的三个 agents 由平台 worker 编排，各自遵循自己的 skill：
+- **`career-search-agent`**：autonomous discovery run。自主选择 search strategy，使用 web_search / board_sync / classify_source / register_board 等 discovery moves。遵循 `career-discovery-operator` skill。
+- **`career-research`**：bounded research for one ingested job。遵循 `career-job-research-operator` skill。
+- **`career-reflect-agent`**：bounded reflection after a run。遵循 `career-reflect-operator` skill。
+
+这三个 agent **不走以下 legacy 全流程触发**，应忽略下方 legacy 专用规则，遵循各自 skill 与 `protocols/AGENT_IO_CONTRACT.md`。
+
+## Legacy Workflow Trigger（仅限 career-intel 手动场景）
 
 > ⚠️ **适用范围**：本节仅适用于 legacy/手动的 `career-intel` monolith agent。
-> 生产环境的 bounded agents（`career-search-agent` / `career-research` /
-> `career-reflect-agent`）由平台 worker 编排，各自只执行自己的 bounded skill，
-> **不**走本节的全流程触发——它们应忽略本节，遵循各自的 skill 与
-> `protocols/AGENT_IO_CONTRACT.md`。
 
 **任何涉及"搜索岗位"、"找工作"、"发现职位"的请求（career-intel 手动场景），必须严格按以下顺序执行，不得跳过：**
 

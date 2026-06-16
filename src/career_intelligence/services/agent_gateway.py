@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 AGENT_TURN_TIMEOUT_S = int(os.environ.get("AGENT_TURN_TIMEOUT_S", "180"))
 AGENT_RUN_WALL_CLOCK_S = int(os.environ.get("AGENT_RUN_WALL_CLOCK_S", "3600"))
 
-# Tool names we treat as "real external actions" when parsing the run log.
+# Native web tool names (first-class OpenClaw tools, appear as toolCall.name directly).
 _WEB_TOOL_ALIASES = {
     "web_fetch": "web_fetch",
     "webfetch": "web_fetch",
@@ -44,6 +44,17 @@ _WEB_TOOL_ALIASES = {
     "web_search": "web_search",
     "websearch": "web_search",
     "search": "web_search",
+}
+
+# Exec wrapper commands that count as real discovery actions.
+# The agent calls `exec` with arguments.command = "./wrappers/<name> ...".
+# We match on the basename of the wrapper (any path prefix is stripped).
+_DISCOVERY_WRAPPER_ACTIONS: dict[str, str] = {
+    "career_sync_board": "board_sync",
+    "career_classify_source": "classify_source",
+    "career_register_board": "register_board",
+    "career_log_candidates": "log_candidates",
+    "career_search_session": "search_session",  # covers log-query subcommand
 }
 
 
@@ -75,7 +86,7 @@ class AgentRunResult:
     turns_used: int
     outputs_present: list[Path]
     outputs_missing: list[Path]
-    tool_calls: list[dict[str, Any]]  # parsed web_fetch/web_search — ground truth
+    tool_calls: list[dict[str, Any]]  # all parsed discovery actions (web + exec wrappers)
     raw_outputs: list[dict[str, Any]]
     raw_log_path: Path | None = None
 
@@ -91,6 +102,17 @@ class AgentRunResult:
     @property
     def web_fetch_count(self) -> int:
         return sum(1 for tc in self.tool_calls if tc.get("tool") == "web_fetch")
+
+    @property
+    def discovery_actions(self) -> list[dict[str, Any]]:
+        """All real discovery actions: web_search, web_fetch, board_sync, classify_source, etc."""
+        return self.tool_calls
+
+    def discovery_action_count(self, action_type: str | None = None) -> int:
+        """Count discovery actions, optionally filtered by action_type."""
+        if action_type is None:
+            return len(self.tool_calls)
+        return sum(1 for tc in self.tool_calls if tc.get("action_type") == action_type)
 
 
 def _unwrap_gateway_envelope(parsed: Any) -> dict[str, Any]:
@@ -165,33 +187,79 @@ def _run_agent_turn(
     return {"raw_output": stdout[:500], "exit_code": proc.returncode}
 
 
+def _classify_exec_command(command: str) -> str | None:
+    """
+    Map an exec wrapper command string to a discovery action type, or None.
+
+    Handles the common path forms agents use:
+      ./wrappers/career_sync_board ...
+      /home/.../wrappers/career_sync_board ...
+      career_sync_board ...
+    Returns the action_type string from _DISCOVERY_WRAPPER_ACTIONS or None.
+    """
+    if not isinstance(command, str):
+        return None
+    # Normalise: strip leading whitespace and take the first token (the binary).
+    first_token = command.strip().split()[0] if command.strip() else ""
+    # Strip any directory prefix to get the bare script name.
+    basename = first_token.split("/")[-1] if "/" in first_token else first_token
+    return _DISCOVERY_WRAPPER_ACTIONS.get(basename)
+
+
 def _tool_call_from_content_item(item: Any) -> dict[str, Any] | None:
     """
-    Map one assistant-message content item to a web tool call, or None.
+    Map one assistant-message content item to a discovery action record, or None.
 
-    Only genuine `{"type": "toolCall"}` entries count. URL is read from the
-    call's arguments (web_fetch → url, web_search → query). This deliberately
-    does NOT match a tool *schema* descriptor (which has no `type: toolCall`
-    and no arguments), so the system-prompt tool catalogue can never pose as a
-    real call.
+    Two-layer parser:
+      Layer 1 — native web tools (web_search, web_fetch): appear as
+        toolCall.name directly; URL extracted from arguments.
+      Layer 2 — exec wrapper calls: appear as toolCall.name == "exec" with
+        arguments.command = "./wrappers/<name> ..."; wrapper name is extracted
+        and mapped to a discovery action type.
+
+    Only genuine {"type": "toolCall"} entries count. This deliberately does NOT
+    match tool *schema* descriptors (no type: toolCall, no arguments), so the
+    system-prompt tool catalogue can never pose as a real call.
     """
     if not isinstance(item, dict) or item.get("type") != "toolCall":
         return None
     raw_name = item.get("name") or item.get("tool")
     if not isinstance(raw_name, str):
         return None
-    alias = _WEB_TOOL_ALIASES.get(raw_name.strip().lower())
-    if not alias:
-        return None
+    name = raw_name.strip().lower()
     args = item.get("arguments") or item.get("args") or item.get("input")
-    url = ""
-    if isinstance(args, dict):
-        for key in ("url", "uri", "link", "target", "query", "q"):
-            val = args.get(key)
-            if isinstance(val, str) and val.strip():
-                url = val.strip()
-                break
-    return {"tool": alias, "url": url}
+
+    # --- Layer 1: native web tools ---
+    alias = _WEB_TOOL_ALIASES.get(name)
+    if alias:
+        url = ""
+        if isinstance(args, dict):
+            for key in ("url", "uri", "link", "target", "query", "q"):
+                val = args.get(key)
+                if isinstance(val, str) and val.strip():
+                    url = val.strip()
+                    break
+        return {"tool": alias, "action_type": alias, "url": url}
+
+    # --- Layer 2: exec wrapper calls ---
+    if name == "exec":
+        command = ""
+        if isinstance(args, dict):
+            for key in ("command", "cmd", "args", "arg"):
+                val = args.get(key)
+                if isinstance(val, str) and val.strip():
+                    command = val.strip()
+                    break
+        action_type = _classify_exec_command(command)
+        if action_type:
+            return {
+                "tool": "exec",
+                "action_type": action_type,
+                "command": command,
+                "url": "",
+            }
+
+    return None
 
 
 def _session_file_from_output(output: Any) -> Path | None:
