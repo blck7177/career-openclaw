@@ -8,18 +8,28 @@ from pathlib import Path
 
 import click
 
-from career_intelligence.app_state.context import DEV_CTX
-from career_intelligence.app_state.workspace_paths import get_workspace_paths
+from career_intelligence.app_state.workspace_paths import resolve_workspace_root
 from career_intelligence.search_session import (
     end_session,
     get_session_status,
-    log_candidates,
     log_query,
     log_query_expansion,
     start_session,
 )
 
-WORKSPACE_ROOT = get_workspace_paths(DEV_CTX.workspace_id).root
+# Shared --workspace-id option. Default (None) resolves to the catalog
+# workspace, matching the workspace the worker creates sessions in. The bounded
+# career-search-agent passes the workspace_id from its task spec here so wrapper
+# writes never land in the wrong workspace when CATALOG_WORKSPACE_ID is set.
+_workspace_id_option = click.option(
+    "--workspace-id",
+    default=None,
+    help=(
+        "Workspace to operate in. Defaults to the catalog workspace "
+        "(CATALOG_WORKSPACE_ID, else dev_default). Pass the workspace_id from "
+        "your task spec when the platform created the session."
+    ),
+)
 
 
 def _print_json(data: dict) -> None:
@@ -46,13 +56,14 @@ def main() -> None:
         "here; start becomes idempotent and will not clobber existing state."
     ),
 )
+@_workspace_id_option
 def start(
     profile: str, mode: str, max_queries: int, max_pages: int,
-    stop_empty: int, session_id: str | None,
+    stop_empty: int, session_id: str | None, workspace_id: str | None,
 ) -> None:
     """Start a new search session (or reuse one when --session-id is given)."""
     result = start_session(
-        workspace_root=WORKSPACE_ROOT,
+        workspace_root=resolve_workspace_root(workspace_id),
         profile_name=profile,
         mode=mode,
         max_queries=max_queries,
@@ -65,9 +76,10 @@ def start(
 
 @main.command()
 @click.option("--session-id", required=True, help="Session ID (timestamp string)")
-def status(session_id: str) -> None:
+@_workspace_id_option
+def status(session_id: str, workspace_id: str | None) -> None:
     """Show current session coverage stats."""
-    result = get_session_status(WORKSPACE_ROOT, session_id)
+    result = get_session_status(resolve_workspace_root(workspace_id), session_id)
     _print_json(result)
 
 
@@ -97,6 +109,7 @@ def status(session_id: str) -> None:
     default=None,
     help="none | blocked_403 | no_results | fake_urls | search_result_pages_only | other",
 )
+@_workspace_id_option
 def log_query_cmd(
     session_id: str,
     query_file: str | None,
@@ -106,6 +119,7 @@ def log_query_cmd(
     valid_url_count: int | None,
     candidate_yield: int | None,
     observed_failure_mode: str | None,
+    workspace_id: str | None,
 ) -> None:
     """Log a web search query to the ledger (inline via --query-text, or rich JSON via --query-file)."""
     if query_file:
@@ -129,7 +143,7 @@ def log_query_cmd(
         click.echo(json.dumps({"error": "Provide --query-text (inline) or --query-file (JSON)"}))
         sys.exit(1)
 
-    result = log_query(WORKSPACE_ROOT, session_id, query_data)
+    result = log_query(resolve_workspace_root(workspace_id), session_id, query_data)
     _print_json(result)
     if result.get("error"):
         sys.exit(1)
@@ -143,12 +157,13 @@ def log_query_cmd(
 @click.option("--derived-from-query-id", default=None)
 @click.option("--derived-from-jd-url", default=None)
 @click.option("--reason", required=True)
+@_workspace_id_option
 def log_expansion_cmd(
     session_id: str, new_query: str, derived_from_query_id: str | None,
-    derived_from_jd_url: str | None, reason: str
+    derived_from_jd_url: str | None, reason: str, workspace_id: str | None,
 ) -> None:
     """Log a query expansion event."""
-    result = log_query_expansion(WORKSPACE_ROOT, session_id, {
+    result = log_query_expansion(resolve_workspace_root(workspace_id), session_id, {
         "new_query": new_query,
         "derived_from_query_id": derived_from_query_id,
         "derived_from_jd_url": derived_from_jd_url,
@@ -160,9 +175,10 @@ def log_expansion_cmd(
 @main.command("end")
 @click.option("--session-id", required=True)
 @click.option("--coverage-report", required=True, help="Path to coverage_report.md written by agent")
-def end_cmd(session_id: str, coverage_report: str) -> None:
+@_workspace_id_option
+def end_cmd(session_id: str, coverage_report: str, workspace_id: str | None) -> None:
     """End a search session (requires coverage_report.md)."""
-    result = end_session(WORKSPACE_ROOT, session_id, coverage_report)
+    result = end_session(resolve_workspace_root(workspace_id), session_id, coverage_report)
     _print_json(result)
     if result.get("error"):
         sys.exit(1)

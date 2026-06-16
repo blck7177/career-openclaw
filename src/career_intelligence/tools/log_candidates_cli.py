@@ -10,9 +10,7 @@ import click
 
 from career_intelligence.search_session import log_candidates
 
-from career_intelligence.app_state.context import DEV_CTX
-from career_intelligence.app_state.workspace_paths import get_workspace_paths
-WORKSPACE_ROOT = get_workspace_paths(DEV_CTX.workspace_id).root
+from career_intelligence.app_state.workspace_paths import resolve_workspace_root
 
 
 @click.command()
@@ -26,6 +24,15 @@ WORKSPACE_ROOT = get_workspace_paths(DEV_CTX.workspace_id).root
 @click.option("--reason", default="")
 @click.option("--query-id", default="")
 @click.option("--workstream-hint", default="")
+@click.option(
+    "--workspace-id",
+    default=None,
+    help=(
+        "Workspace to operate in. Defaults to the catalog workspace "
+        "(CATALOG_WORKSPACE_ID, else dev_default). Pass the workspace_id from "
+        "your task spec when the platform created the session."
+    ),
+)
 def main(
     session_id: str,
     candidates_file: str | None,
@@ -37,6 +44,7 @@ def main(
     reason: str,
     query_id: str,
     workstream_hint: str,
+    workspace_id: str | None,
 ) -> None:
     """Log triaged job candidates to the candidate pool."""
     if candidates_file:
@@ -62,7 +70,7 @@ def main(
         click.echo(json.dumps({"error": "Provide --candidates-file or --url"}))
         sys.exit(1)
 
-    result = log_candidates(WORKSPACE_ROOT, session_id, candidates)
+    result = log_candidates(resolve_workspace_root(workspace_id), session_id, candidates)
     click.echo(json.dumps(result, indent=2, ensure_ascii=False))
 
 if __name__ == "__main__":

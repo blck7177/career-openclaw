@@ -103,12 +103,16 @@ def _reflect_input_spec(
 
 
 def _search_input_spec(
-    session_id: str, profile_name: str, search_brief: str,
+    session_id: str, workspace_id: str, profile_name: str, search_brief: str,
     max_queries: int, max_pages: int, coverage_path: Path,
 ) -> dict[str, Any]:
     """Structured task spec the bounded search agent reads (instead of a long prompt)."""
     return {
         "session_id": session_id,
+        # The workspace the worker created the session in. The agent must pass
+        # this to every wrapper (--workspace-id) so its writes land in the same
+        # workspace, not the CLI default — see resolve_workspace_root().
+        "workspace_id": workspace_id,
         "profile_name": profile_name,
         "search_brief": search_brief,
         "max_queries": max_queries,
@@ -119,16 +123,25 @@ def _search_input_spec(
     }
 
 
-def _search_prompt(session_id: str, input_spec_path: Path) -> str:
+def _search_prompt(session_id: str, workspace_id: str, input_spec_path: Path) -> str:
     return (
         "Read the career-search-turn-operator skill, then execute search turns "
         "for an ALREADY-CREATED session.\n\n"
         f"Read your task spec from: {input_spec_path}\n"
-        f"  session_id : {session_id}\n\n"
+        f"  session_id   : {session_id}\n"
+        f"  workspace_id : {workspace_id}\n\n"
         "Do NOT call career_search_session start or end — the platform owns the "
         "session lifecycle. Run the loop: web_search → web_fetch → "
-        "career_search_session log-query → career_log_candidates. Use "
-        f"--session-id {session_id} for all wrapper calls.\n\n"
+        "career_search_session log-query → career_log_candidates. For EVERY "
+        f"wrapper call pass both --session-id {session_id} and "
+        f"--workspace-id {workspace_id} (the session lives in that workspace).\n\n"
+        "SEARCH WITH THE web_search TOOL. 'web_search' is the name of a tool — "
+        "call it to search. Do NOT web_fetch a search-engine results page "
+        "(e.g. google.com/search?q=...) as a substitute; that is not a real "
+        "search and yields listing/landing-page candidates that the pipeline "
+        "cannot turn into jobs. web_fetch is ONLY for confirming an individual "
+        "job-posting URL. Search-results/listing URLs are rejected by "
+        "career_log_candidates (rejected_search_page).\n\n"
         "REQUIRED: execute real web_search before career_log_candidates "
         "(candidates are REJECTED when queries_run=0).\n\n"
         "When done (>=20 candidates or budget exhausted), write the coverage draft "
@@ -250,6 +263,8 @@ def run_discovery_session(
     catalog_id = get_catalog_workspace_id()
     workspace_root = get_workspace_paths(catalog_id).root
     repo_root = get_repo_root()
+    # The agent must write to the SAME workspace the worker creates the session
+    # in; it receives this id in the input_spec and passes it to every wrapper.
 
     # 1. Start session (Python direct — no subprocess needed)
     sess = start_session(
@@ -270,11 +285,12 @@ def run_discovery_session(
 
     invocation = agent_gateway.AgentInvocation(
         agent_id=_OPENCLAW_AGENT_ID,
-        prompt=_search_prompt(session_id, input_spec_path),
+        prompt=_search_prompt(session_id, catalog_id, input_spec_path),
         repo_root=repo_root,
         expected_outputs=[coverage_draft],
         input_spec=_search_input_spec(
-            session_id, profile_name, search_brief, max_queries, max_pages, coverage_draft
+            session_id, catalog_id, profile_name, search_brief,
+            max_queries, max_pages, coverage_draft,
         ),
         input_spec_path=input_spec_path,
         run_log_path=run_log_path,

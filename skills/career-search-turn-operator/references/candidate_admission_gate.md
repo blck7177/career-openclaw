@@ -4,7 +4,8 @@
 
 ## web_search → web_fetch 是两步，不是一步
 
-- `web_search` 返回的是**搜索摘要 + URL 列表**，不是 job posting 本身。
+- `web_search` 是一个**工具名**（不是动词）。要搜索就调用 `web_search` 工具，它返回**搜索摘要 + URL 列表**。
+- **绝不**用 `web_fetch` 去抓一个搜索引擎结果页（如 `google.com/search?q=...`、`bing.com/search?...`）来"搜索"——那不是真正的搜索，会得到一堆 listing/落地页候选，pipeline 抓不出 JD。**搜索一律用 `web_search` 工具。**
 - 必须对每个候选 URL **单独调用 `web_fetch`** 确认真实 JD 内容，才能考虑入池。
 - 不能只凭 search snippet 推断入池。
 
@@ -17,7 +18,9 @@
 3. 必填字段：`url`（非空真实 URL）、`title`、`company`。
 4. 建议字段：`location`、`relevance`（`relevant` / `maybe`，默认 maybe）、`relevance_reason`、`workstream_hint`。
 
-没有真实 URL 的候选会被工具拒绝（`rejected_no_url`，记入 `skipped_results.jsonl`）。
+工具会硬拒以下两类候选（记入 `skipped_results.jsonl`）：
+- 无真实 URL → `rejected_no_url`。
+- URL 是搜索结果/listing 页（`google.com/search?...`、`*/jobs/search?...`、以 `/search` 结尾等）→ `rejected_search_page`。这类是"找工作的方式"，不是岗位本身，永远不能入池。
 
 ## 强制日志顺序（provenance）
 

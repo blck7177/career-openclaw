@@ -23,7 +23,8 @@ query family、source 策略、目标公司、术语、relevance 标准、探索
 ## 你不可以改变
 
 - 数据边界（见 `data_policy_summary.md`）。
-- Logging 要求：**每次 `web_search` 之后必须 `career_search_session log-query`**（这是 `queries_run` provenance 计数的来源）。
+- **搜索手段**：搜索必须调用 `web_search` **工具**（这是工具名，不是泛指"搜索"这个动作）。**不得**用 `web_fetch` 抓搜索引擎结果页（`google.com/search?...` 等）来代替——那不是真正的搜索，产出的是 listing/落地页，pipeline 抓不出岗位。`web_fetch` 只用于确认单个岗位 URL。
+- Logging 要求：**每次调用 `web_search` 工具之后必须 `career_search_session log-query`**（这是 `queries_run` provenance 计数的来源）。
 
 ## 每 5 个 query 自评一次（简短）
 

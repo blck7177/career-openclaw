@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "search_agent_input.schema.json",
+  "title": "SearchAgentInputSpec",
+  "description": "The structured task spec the worker writes for the bounded career-search-agent (agent_service._search_input_spec). The agent reads this file instead of relying on a long prompt: it carries the already-created session_id, the workspace that session lives in, the search budget, and the fixed output path. Built by the worker, consumed by the career-search-turn-operator skill.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["session_id", "workspace_id", "profile_name", "search_brief", "expected_output_paths"],
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Session the worker already created. The agent MUST NOT start/end it."
+    },
+    "workspace_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Workspace the session lives in; pass to every wrapper via --workspace-id so writes land in the right workspace."
+    },
+    "profile_name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Search profile name from configs/search_profiles.yaml."
+    },
+    "search_brief": {
+      "type": "string",
+      "description": "Free-text objective for this discovery run."
+    },
+    "max_queries": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Hard query budget for the session."
+    },
+    "max_pages": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Hard fetch-page budget for the session."
+    },
+    "expected_output_paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["coverage_draft"],
+      "properties": {
+        "coverage_draft": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Absolute path the agent must write coverage_draft.md to; the gateway judges completion by its existence."
+        }
+      }
+    }
+  }
+}

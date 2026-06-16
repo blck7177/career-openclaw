@@ -28,7 +28,7 @@ Worker owns workflow + session lifecycle.  Agent owns the bounded search action.
 1. **读 task spec**（路径在 prompt 里）→ 拿到 `session_id` 和 `expected_output_paths.coverage_draft`。
 2. **`career_search_status --session-id <id>`** 确认 session、读 budget。**绝不 `career_search_session start`。**
 3. **搜索循环**（细则见 `candidate_admission_gate.md`）：
-   `web_search` → `career_search_session log-query`（每次 search 必做）→ `web_fetch`（逐个候选确认）→ `career_log_candidates`（确认的入池）。
+   调用 **`web_search` 工具**（不是 `web_fetch` 抓 Google）→ `career_search_session log-query`（每次 search 必做）→ `web_fetch`（逐个候选确认）→ `career_log_candidates`（确认的入池）。
    每 5 query 看一次 `career_search_status` 自评（见 `search_strategy.md`）。
 4. **写 `coverage_draft.md`** 到 spec 路径（格式见 `coverage_draft_template.md`），然后 **STOP**。
 
@@ -36,7 +36,8 @@ Worker owns workflow + session lifecycle.  Agent owns the bounded search action.
 
 - 不 `career_search_session start` / `end`；不 `career_sync_board` / `career_register_board` / `career_classify_source`。
 - 不跑 pipeline、不写 db、不写 report、不调 role analysis、不调 `career_update_strategy`。
-- 不把搜索结果页 / 公司主页当 candidate URL；不登录 / 不绕过 paywall。
+- 搜索只用 `web_search` **工具**；**不**用 `web_fetch` 抓 `google.com/search?...` 等搜索结果页代替搜索。
+- 不把搜索结果页 / 公司主页当 candidate URL（会被 `rejected_search_page` 拒）；不登录 / 不绕过 paywall。
 - 不用 `exec python3 -c` 或 heredoc 内联脚本——exec 只用于 `./wrappers/*`。
 
 ## 完成标志

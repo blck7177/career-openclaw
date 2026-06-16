@@ -3,23 +3,29 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import click
 
 from career_intelligence.search_session import get_session_status
 
-from career_intelligence.app_state.context import DEV_CTX
-from career_intelligence.app_state.workspace_paths import get_workspace_paths
-WORKSPACE_ROOT = get_workspace_paths(DEV_CTX.workspace_id).root
+from career_intelligence.app_state.workspace_paths import resolve_workspace_root
 
 
 @click.command()
 @click.option("--session-id", required=True)
 @click.option("--format", "fmt", default="json", type=click.Choice(["json", "text"]))
-def main(session_id: str, fmt: str) -> None:
+@click.option(
+    "--workspace-id",
+    default=None,
+    help=(
+        "Workspace to operate in. Defaults to the catalog workspace "
+        "(CATALOG_WORKSPACE_ID, else dev_default). Pass the workspace_id from "
+        "your task spec when the platform created the session."
+    ),
+)
+def main(session_id: str, fmt: str, workspace_id: str | None) -> None:
     """Show session coverage statistics."""
-    result = get_session_status(WORKSPACE_ROOT, session_id)
+    result = get_session_status(resolve_workspace_root(workspace_id), session_id)
     if fmt == "text":
         click.echo(f"Session: {result.get('session_id')}")
         click.echo(f"Queries run:      {result.get('queries_run', 0)}")

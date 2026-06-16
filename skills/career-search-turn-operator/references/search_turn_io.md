@@ -15,6 +15,7 @@ Service owns persistence.
 ```json
 {
   "session_id": "2026-06-14_030203",
+  "workspace_id": "dev_default",
   "profile_name": "market_risk_nyc",
   "search_brief": "本次要发现的岗位方向",
   "max_queries": 30,
@@ -25,7 +26,7 @@ Service owns persistence.
 }
 ```
 
-后续所有 wrapper 调用都用这个 `--session-id <session_id>`。
+后续所有 wrapper 调用都必须同时带上 `--session-id <session_id>` **和** `--workspace-id <workspace_id>`。session 是平台在 `workspace_id` 这个 workspace 里创建的；不传 `--workspace-id` 时 wrapper 会退回到 catalog 默认 workspace，生产环境若覆盖了 `CATALOG_WORKSPACE_ID` 就会读/写错 workspace。
 
 ## 平台在你之前已经做完的事
 

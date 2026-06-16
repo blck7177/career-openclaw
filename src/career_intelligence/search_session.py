@@ -12,12 +12,54 @@ Manages the lifecycle of an agent-led search session:
 from __future__ import annotations
 
 import json
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
+from .schema_validation import validate_against_schema
 from .url_utils import url_hash as _url_hash
+
+# Hosts that are general web search engines. A web_fetch against one of these is
+# a search *mechanism*, not a job posting — agents must use the web_search tool
+# instead, and such URLs must never enter the candidate pool.
+_SEARCH_ENGINE_HOSTS = (
+    "google.",
+    "bing.com",
+    "duckduckgo.com",
+    "search.yahoo.com",
+    "search.brave.com",
+    "startpage.com",
+    "ecosia.org",
+)
+
+
+def _is_search_result_url(url: str) -> bool:
+    """
+    True when ``url`` is a search-results / keyword-listing page rather than a
+    single job posting (e.g. ``google.com/search?q=...``,
+    ``linkedin.com/jobs/search?...``).
+
+    These are a way to *find* jobs, not jobs themselves, so they must never be
+    admitted as candidates — mirrors the hard rule in
+    skills/.../references/candidate_admission_gate.md. Kept conservative to
+    avoid rejecting genuine JD URLs.
+    """
+    try:
+        parsed = urlparse((url or "").strip())
+    except ValueError:
+        return False
+    host = (parsed.netloc or "").lower()
+    path = (parsed.path or "").lower().rstrip("/")
+    has_query = bool(parsed.query)
+
+    # General web search engines hitting a /search endpoint (or a bare query).
+    if any(h in host for h in _SEARCH_ENGINE_HOSTS) and ("search" in path or has_query):
+        return True
+    # Job-board / aggregator keyword-search result pages (not an individual JD).
+    if path.endswith("/jobs/search") or path.endswith("/search") or "/jobs/search/" in path:
+        return True
+    return False
 
 RUNNER_VERSION = "0.1.0"
 
@@ -279,6 +321,17 @@ def log_query(
             ),
         }
 
+    # Enforce the shared contract (types + enums) from search_query.schema.json.
+    # The unknown-field / query_text checks above give friendlier messages; this
+    # adds enum/type validation so e.g. an invalid source_type or a non-integer
+    # candidate_yield cannot reach the ledger.
+    schema_errors = validate_against_schema(query_data, "search_query.schema.json")
+    if schema_errors:
+        return {
+            "error": "search_query schema validation failed: " + "; ".join(schema_errors),
+            "schema_errors": schema_errors,
+        }
+
     status = get_session_status(workspace_root, session_id)
     budget = status.get("budget", {})
     max_queries = budget.get("max_queries", 30)
@@ -387,6 +440,8 @@ def log_candidates(
     added = []
     duplicates = []
     rejected_no_url = []
+    rejected_search_page: list[dict[str, Any]] = []
+    rejected_schema: list[dict[str, Any]] = []
     for cand in candidates:
         url = (cand.get("url") or cand.get("source_url") or "").strip()
         if not url:
@@ -397,10 +452,22 @@ def log_candidates(
                 "timestamp": _now_iso(),
             })
             continue
+        # A search-results / listing page is a way to find jobs, not a job. It
+        # must never enter the pool (the pipeline cannot extract a JD from it).
+        if _is_search_result_url(url):
+            rejected_search_page.append({
+                "title": cand.get("title", ""),
+                "company": cand.get("company", ""),
+                "url": url,
+                "skip_reason": "search_result_page",
+                "timestamp": _now_iso(),
+            })
+            continue
         h = _url_hash(url)
         if h in existing_hashes:
             duplicates.append(url)
             continue
+        relevance = cand.get("relevance", "maybe")
         record = {
             "candidate_id": cand.get("candidate_id", f"cand_{len(existing) + len(added) + 1:03d}"),
             "url": url,
@@ -409,20 +476,29 @@ def log_candidates(
             "company": cand.get("company", ""),
             "location": cand.get("location", ""),
             "source_query_id": cand.get("source_query_id", ""),
-            "relevance": cand.get("relevance", "maybe"),
+            "relevance": relevance,
             "relevance_reason": cand.get("relevance_reason", ""),
             "workstream_hint": cand.get("workstream_hint", ""),
             "fetch_status": "pending",
             "timestamp_captured": _now_iso(),
         }
+        # Enforce the persisted-entry contract before it lands in the pool, so a
+        # malformed candidate (e.g. relevance outside the enum) is rejected with
+        # a reason instead of corrupting the file the pipeline reads.
+        entry_errors = validate_against_schema(record, "candidate_pool_entry.schema.json")
+        if entry_errors:
+            rejected_schema.append({
+                "url": url,
+                "errors": entry_errors,
+            })
+            continue
         _append_jsonl(sdir / "candidate_pool.jsonl", record)
         existing_hashes.add(h)
         added.append(url)
 
-    if rejected_no_url:
-        skipped_path = sdir / "skipped_results.jsonl"
-        for entry in rejected_no_url:
-            _append_jsonl(skipped_path, entry)
+    skipped_path = sdir / "skipped_results.jsonl"
+    for entry in (*rejected_no_url, *rejected_search_page):
+        _append_jsonl(skipped_path, entry)
 
     result: dict[str, Any] = {
         "added": len(added),
@@ -438,6 +514,17 @@ def log_candidates(
             "The above candidates were rejected because no source_url was provided. "
             "Use web_fetch on the job posting page to get the direct URL, then re-submit."
         )
+    if rejected_search_page:
+        result["rejected_search_page"] = len(rejected_search_page)
+        result["rejected_search_page_details"] = [r["url"] for r in rejected_search_page]
+        result["action_required"] = (
+            "The above URLs are search-results/listing pages, not job postings. "
+            "Use the web_search TOOL to discover individual JD URLs, web_fetch each "
+            "one to confirm it is a single posting, then re-submit those direct URLs."
+        )
+    if rejected_schema:
+        result["rejected_schema"] = len(rejected_schema)
+        result["rejected_schema_details"] = rejected_schema
     return result
 
 

@@ -258,6 +258,21 @@ class GlobalPaths:
             d.mkdir(parents=True, exist_ok=True)
 
 
+def resolve_workspace_root(workspace_id: str | None = None) -> Path:
+    """
+    Resolve a workspace root for CLI / wrapper use.
+
+    Defaults to the catalog workspace (CATALOG_WORKSPACE_ID, falling back to
+    dev_default) — the SAME workspace the worker creates search sessions in —
+    so a bounded agent's wrapper writes (log-query / log-candidates / status)
+    land in the session directory the worker actually created, even when
+    CATALOG_WORKSPACE_ID is overridden in production. Pass an explicit
+    workspace_id to override (e.g. manual/debug against another workspace).
+    """
+    wsid = workspace_id or get_catalog_workspace_id()
+    return get_workspace_paths(wsid).root
+
+
 def get_workspace_paths(
     workspace_id: str,
     data_root: Path | None = None,
