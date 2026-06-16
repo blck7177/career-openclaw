@@ -50,9 +50,11 @@ from career_intelligence.search_session import (
     session_dir,
     start_session,
 )
+from career_intelligence.storage_jsonl import query_jobs
 from career_intelligence.strategy_state import (
     StrategyPatchError,
     apply_strategy_patch,
+    read_state,
 )
 
 logger = logging.getLogger(__name__)
@@ -107,6 +109,63 @@ def _reflect_input_spec(
     }
 
 
+def _load_profile_summary(repo_root: Path, profile_name: str) -> str:
+    """One-line profile summary from configs/search_profiles.yaml.
+
+    Returns "" if the config or profile is missing — this is optional context,
+    never required for the run to proceed.
+    """
+    import yaml  # type: ignore
+
+    path = repo_root / "configs" / "search_profiles.yaml"
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return ""
+    profile = (data.get("profiles") or {}).get(profile_name)
+    if not isinstance(profile, dict):
+        return ""
+    parts: list[str] = []
+    if profile.get("description"):
+        parts.append(str(profile["description"]))
+    for label, key in (("Keywords", "keywords"), ("Locations", "locations"), ("Seniority", "seniority")):
+        values = profile.get(key) or []
+        if isinstance(values, list) and values:
+            parts.append(f"{label}: " + ", ".join(str(v) for v in values))
+    return " | ".join(parts)
+
+
+def _build_catalog_context(catalog_id: str, workspace_root: Path) -> dict[str, Any]:
+    """Deterministic catalog coverage snapshot for the discovery agent.
+
+    Reuses existing data sources only: the shared job catalog (job count +
+    recently-seen companies) and cross-run strategy_state (workstreams the
+    reflect agent flagged weak/missing). Lets the agent own strategy from the
+    first turn without re-querying the database.
+    """
+    db_dir = get_workspace_paths(catalog_id).db_dir
+    jobs = query_jobs(db_dir, limit=10_000)
+
+    recent_companies: list[str] = []
+    for job in jobs:  # query_jobs sorts by date_found desc → most recent first
+        company = (job.get("company") or "").strip()
+        if company and company not in recent_companies:
+            recent_companies.append(company)
+        if len(recent_companies) >= 15:
+            break
+
+    coverage = read_state(workspace_root).get("coverage_by_workstream", {}) or {}
+    coverage_gaps = sorted(
+        ws for ws, status in coverage.items() if status in ("weak", "missing")
+    )
+
+    return {
+        "existing_job_count": len(jobs),
+        "recent_companies": recent_companies,
+        "coverage_gaps": coverage_gaps,
+    }
+
+
 def _search_input_spec(
     session_id: str,
     workspace_id: str,
@@ -117,6 +176,7 @@ def _search_input_spec(
     coverage_path: Path,
     discovery_notes_path: Path,
     catalog_context: dict[str, Any] | None = None,
+    profile_summary: str = "",
     repo_root: Path | None = None,
 ) -> dict[str, Any]:
     """
@@ -142,6 +202,7 @@ def _search_input_spec(
         "search_request": {
             "raw_user_request": search_brief,
             "profile_name": profile_name,
+            "profile_summary": profile_summary,
         },
         "catalog_context": catalog_context or {},
         "source_context": source_context,
@@ -311,6 +372,12 @@ def run_discovery_session(
     input_spec_path = session_root / "agent_input.json"
     run_log_path = session_root / "agent_run_log.json"
 
+    # Give the agent current database coverage + profile context so it can own
+    # discovery strategy from the first turn (Worker provides context; Agent
+    # owns strategy). Both are deterministic reads of existing data sources.
+    catalog_context = _build_catalog_context(catalog_id, workspace_root)
+    profile_summary = _load_profile_summary(repo_root, profile_name)
+
     invocation = agent_gateway.AgentInvocation(
         agent_id=_OPENCLAW_AGENT_ID,
         prompt=_search_prompt(session_id, catalog_id, input_spec_path),
@@ -326,6 +393,8 @@ def run_discovery_session(
             max_pages=max_pages,
             coverage_path=coverage_report,
             discovery_notes_path=discovery_notes,
+            catalog_context=catalog_context,
+            profile_summary=profile_summary,
             repo_root=repo_root,
         ),
         input_spec_path=input_spec_path,

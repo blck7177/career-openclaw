@@ -24,27 +24,9 @@
 - **`career-research`**：bounded research for one ingested job。遵循 `career-job-research-operator` skill。
 - **`career-reflect-agent`**：bounded reflection after a run。遵循 `career-reflect-operator` skill。
 
-这三个 agent **不走以下 legacy 全流程触发**，应忽略下方 legacy 专用规则，遵循各自 skill 与 `protocols/AGENT_IO_CONTRACT.md`。
+这三个 agent 遵循各自 skill 与 `protocols/AGENT_IO_CONTRACT.md`，生命周期由平台 worker 编排。
 
-## Legacy Workflow Trigger（仅限 career-intel 手动场景）
-
-> ⚠️ **适用范围**：本节仅适用于 legacy/手动的 `career-intel` monolith agent。
-
-**任何涉及"搜索岗位"、"找工作"、"发现职位"的请求（career-intel 手动场景），必须严格按以下顺序执行，不得跳过：**
-
-1. 调用 `career-research-orchestrator` skill，启动完整 Search → Process → Reflect workflow
-2. 用 `./wrappers/career_search_session start` 开启一个**新的** search session（不复用历史 session）
-3. 执行真实的 web_search → web_fetch 循环，将结果写入 candidate_pool
-4. 调用 `./wrappers/career_run_discovery` 完成结构化入库
-5. 调用 `./wrappers/career_summarize_run` 生成 run summary 后才视为完成
-
-**以下行为被明确禁止：**
-- 从会话历史或记忆中直接提取 URL 作为搜索结果
-- 在没有调用任何 wrapper 的情况下回复"找到了 N 个岗位"
-- 用纯文字列表代替 candidate_pool 记录
-- 把"已知"或"印象中"的 URL 当作本次搜索结果返回
-
-**如果一个 turn 里没有调用任何 exec tool，那一定是出了问题——停下来重新进入 workflow。**
+> Legacy 的 `career-intel` monolith agent 已退役。其专用 skills（`career-research-orchestrator` / `career-search-operator` / `career-run-processor` / `career-strategy-reviewer`）已移至 `skills_disabled/`，不再被 OpenClaw 加载。
 
 ## Human-owned 文件（不能修改）
 - configs/search_profiles.yaml
@@ -65,7 +47,8 @@
 ## 工具使用规则（工具机制，不是策略规则）
 - **写文件**：用文件 write tool。不要用 `exec python3 -c "..."` 或 heredoc 内联脚本写文件——exec allowlist 只允许 wrappers，内联脚本会被拒绝
 - **exec tool**：只用于调用 `./wrappers/` 下的脚本（使用完整路径 `./wrappers/<name>`）
-- **web_search → web_fetch**：web_search 返回摘要和 URL 列表，不是 job posting 本身。必须对每个候选 URL 单独调用 web_fetch 确认真实内容，才能入池
+
+> 具体的发现策略（何时用 web_search / web_fetch / board_sync 等）属于 agent skill，不在本宪法中规定。
 
 ## OpenClaw 不能做的事
 - 不能直接调用 src/ 下的模块
@@ -91,8 +74,7 @@ Processing Layer:
 - ./wrappers/career_summarize_run: 生成 / 查看 run summary
 
 ## 关键 protocol 文件（需要时通过 read tool 加载）
-- protocols/PROJECT_PROTOCOL.md（完整 workflow）
-- protocols/SEARCH_STRATEGY_PROTOCOL.md（search 策略指南）
+- protocols/AGENT_IO_CONTRACT.md（生产 agent worker/agent/service 边界）
 - protocols/OUTPUT_CONTRACT.md（输出字段规范）
 - protocols/DATA_POLICY.md（source 和存储边界）
 - protocols/WORKSTREAM_TAXONOMY.md（workstream 分类）

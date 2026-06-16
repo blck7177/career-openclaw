@@ -68,7 +68,7 @@ def workspace_root(tmp_path: Path) -> Path:
 
 
 def _patches(workspace_root: Path, fake_invoke, pipeline_result=None):
-    paths = SimpleNamespace(root=workspace_root)
+    paths = SimpleNamespace(root=workspace_root, db_dir=workspace_root / "db")
     return [
         patch("career_intelligence.services.agent_service.get_catalog_workspace_id",
               return_value="dev"),

@@ -564,7 +564,9 @@ def end_session(
         return {"error": f"coverage_report not found at {coverage_report_path}. You must write it before ending the session."}
 
     import shutil
-    shutil.copy(coverage_src, sdir / "coverage_report.md")
+    coverage_dst = sdir / "coverage_report.md"
+    if coverage_src.resolve() != coverage_dst.resolve():
+        shutil.copy(coverage_src, coverage_dst)
 
     status = get_session_status(workspace_root, session_id)
 

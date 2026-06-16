@@ -54,7 +54,7 @@ cp .env.example .env
 # 将 openclaw_integration/exec-approvals.template.json 合并到 ~/.openclaw/exec-approvals.json
 ```
 
-在 OpenClaw 里触发 `career-research-orchestrator` skill，或手动执行：
+手动执行以下 wrapper 序列（legacy skills 已移至 `skills_disabled/`，OpenClaw 不再加载，因此无法再通过 `career-research-orchestrator` skill 触发）：
 
 **Step 1 — Search**
 ```bash
@@ -173,14 +173,17 @@ career-openclaw/
 │   ├── services/                    ← job / run / report / task / analysis service
 │   └── tools/                       ← CLI adapter（wrappers 的实际实现）
 │
-├── skills/                          ← OpenClaw skills（agent 工作模式）
-│   ├── career-search-turn-operator/SKILL.md   ← career-search-agent（生产 bounded 搜索）
+├── skills/                          ← OpenClaw skills（生产 agent 工作模式）
+│   ├── career-discovery-operator/SKILL.md     ← career-search-agent（生产 autonomous discovery）
 │   ├── career-job-research-operator/SKILL.md  ← career-research（生产 bounded 研究）
-│   ├── career-reflect-operator/SKILL.md       ← career-reflect-agent（生产 bounded 复盘）
-│   ├── career-research-orchestrator/SKILL.md  ← career-intel（legacy/debug 全流程编排）
-│   ├── career-search-operator/SKILL.md        ← career-intel（legacy/debug 搜索）
-│   ├── career-run-processor/SKILL.md          ← career-intel（legacy/debug 处理）
-│   └── career-strategy-reviewer/SKILL.md      ← career-intel（legacy/debug 策略复盘）
+│   └── career-reflect-operator/SKILL.md       ← career-reflect-agent（生产 bounded 复盘）
+│
+├── skills_disabled/                 ← 已退役 legacy skills（不在 skill root 下，OpenClaw 不加载）
+│   ├── career-research-orchestrator/SKILL.md  ← career-intel（legacy 全流程编排）
+│   ├── career-search-operator/SKILL.md        ← career-intel（legacy 搜索）
+│   ├── career-run-processor/SKILL.md          ← career-intel（legacy 处理）
+│   ├── career-strategy-reviewer/SKILL.md      ← career-intel（legacy 策略复盘）
+│   └── career-search-turn-operator/SKILL.md   ← 早期 bounded 搜索尝试（已被 discovery-operator 取代）
 │
 ├── protocols/                       ← 行为规范和领域知识（human-owned）
 │   ├── PROJECT_PROTOCOL.md
