@@ -124,44 +124,35 @@ def _search_input_spec(
 
 
 def _search_prompt(session_id: str, workspace_id: str, input_spec_path: Path) -> str:
+    """Task envelope only. Workflow/tool order/admission gates/stopping rules live
+    in the career-search-turn-operator skill + references (single source of truth);
+    the prompt never restates them."""
     return (
-        "Read the career-search-turn-operator skill, then execute search turns "
-        "for an ALREADY-CREATED session.\n\n"
+        "You are executing a bounded career search turn.\n\n"
+        "Read and follow the career-search-turn-operator skill and its references. "
+        "They are the source of truth for workflow, tool order, candidate admission "
+        "gates, and stopping rules. If anything in this prompt appears to conflict "
+        "with the skill, follow the skill.\n\n"
         f"Read your task spec from: {input_spec_path}\n"
         f"  session_id   : {session_id}\n"
         f"  workspace_id : {workspace_id}\n\n"
-        "Do NOT call career_search_session start or end — the platform owns the "
-        "session lifecycle. Run the loop: web_search → web_fetch → "
-        "career_search_session log-query → career_log_candidates. For EVERY "
-        f"wrapper call pass both --session-id {session_id} and "
-        f"--workspace-id {workspace_id} (the session lives in that workspace).\n\n"
-        "SEARCH WITH THE web_search TOOL. 'web_search' is the name of a tool — "
-        "call it to search. Do NOT web_fetch a search-engine results page "
-        "(e.g. google.com/search?q=...) as a substitute; that is not a real "
-        "search and yields listing/landing-page candidates that the pipeline "
-        "cannot turn into jobs. web_fetch is ONLY for confirming an individual "
-        "job-posting URL. Search-results/listing URLs are rejected by "
-        "career_log_candidates (rejected_search_page).\n\n"
-        "REQUIRED: execute real web_search before career_log_candidates "
-        "(candidates are REJECTED when queries_run=0).\n\n"
-        "When done (>=20 candidates or budget exhausted), write the coverage draft "
-        "(coverage_draft.md) to the path in the spec and STOP. The platform's "
-        "end_session promotes it to the run's coverage_report.md."
+        "Write the expected output to the path given in the task spec, then STOP."
     )
 
 
 def _reflect_prompt(session_id: str, input_spec_path: Path) -> str:
+    """Task envelope only. Workflow/diagnosis focus/patch contract/stopping rules
+    live in the career-reflect-operator skill + references (single source of truth);
+    the prompt never restates them."""
     return (
-        "Read the career-reflect-operator skill, then reflect on an "
-        "ALREADY-COMPLETED discovery run.\n\n"
+        "You are executing a bounded post-run reflection turn.\n\n"
+        "Read and follow the career-reflect-operator skill and its references. "
+        "They are the source of truth for workflow, diagnosis focus, the strategy "
+        "patch contract, and stopping rules. If anything in this prompt appears to "
+        "conflict with the skill, follow the skill.\n\n"
         f"Read your task spec from: {input_spec_path}\n"
         f"  session_id : {session_id}\n\n"
-        "Read run_summary.md + coverage_report.md, diagnose source failures and "
-        "workstream coverage, then write strategy_patch.json and "
-        "reflection_report.md to the exact paths in the spec.\n\n"
-        "Do NOT call career_update_strategy and do NOT write strategy_state.json — "
-        "the platform validates your patch and persists it. When both files are "
-        "written, STOP."
+        "Write the expected outputs to the paths given in the task spec, then STOP."
     )
 
 

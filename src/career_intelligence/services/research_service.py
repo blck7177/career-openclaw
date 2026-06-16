@@ -88,17 +88,18 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
 
 
 def _build_prompt(job_record: dict[str, Any], input_spec_path: Path) -> str:
+    """Task envelope only. Workflow/tool order/fetch budget/source-verification
+    gate/output format/stopping rules live in the career-job-research-operator
+    skill + references (single source of truth); the prompt never restates them."""
     return (
-        "Read the career-job-research-operator skill, then execute it for ONE job.\n\n"
-        f"Read your task spec from: {input_spec_path}\n\n"
-        "Do ONLY bounded research:\n"
-        "  web_search → web_fetch (max 3 per company), then write the two output files.\n"
-        "After EACH web_fetch, call:\n"
-        "  career_research_session log-fetch --job-id <job_id> "
-        "--inputs-hash <research_inputs_hash> --url <fetched_url>\n\n"
-        "Write outputs to the exact paths in the spec (research_notes.md + "
-        "research_sources.json). Do NOT generate a job report, do NOT write the "
-        "database, do NOT call role analysis. Evidence only."
+        "You are executing a bounded research turn for ONE known job.\n\n"
+        "Read and follow the career-job-research-operator skill and its references. "
+        "They are the source of truth for workflow, tool order, fetch budget, the "
+        "source-verification gate, output format, and stopping rules. If anything "
+        "in this prompt appears to conflict with the skill, follow the skill.\n\n"
+        f"Read your task spec from: {input_spec_path}\n"
+        f"  job_id : {job_record.get('job_id', '')}\n\n"
+        "Write the expected outputs to the paths given in the task spec, then STOP."
     )
 
 

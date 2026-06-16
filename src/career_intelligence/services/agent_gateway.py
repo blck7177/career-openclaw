@@ -214,11 +214,12 @@ def _extract_tool_calls_from_session(session_file: Path) -> list[dict[str, Any]]
     web_search cannot produce these entries (it does not author the session
     log). Two subtleties drive the implementation:
 
-    1. OpenClaw `--local` resumes a persistent per-agent session and *appends*
-       each turn, so the jsonl accumulates across turns and across runs. We
-       scope to the last user message (the message this turn just sent) and only
+    1. All turns of one invocation share a single `--session-key`, and OpenClaw
+       *appends* each turn to that session's jsonl, so it accumulates across the
+       turns of this run (and, if a key were ever reused, across runs). We scope
+       to the last user message (the message this turn just sent) and only
        collect tool calls emitted after it — otherwise stale calls from earlier
-       turns/runs would be counted.
+       turns would be counted.
     2. Real calls live in assistant-message `content[].type == "toolCall"`
        items, NOT in the `--json` stdout summary (whose only tool reference is
        the static schema catalogue under `meta.systemPromptReport`).
