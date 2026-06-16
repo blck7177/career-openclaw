@@ -1,6 +1,11 @@
 # Job Report Protocol（原 Role Dossier）
 
 > 历史命名 `role_dossier` 已统一为 `job_report`。Layer 2 结构 schema 见 `schemas/job_report.schema.json`。
+>
+> ℹ️ **bounded agent 指引**：生产的 `career-research` 不依赖本文件全文，改读 self-contained skill 包
+> `skills/career-job-research-operator/SKILL.md` + 其 `references/`（`research_io.md` /
+> `research_notes_format.md` / `source_verification_gate.md` / `data_policy_summary.md`）。
+> 本文件保留为 Job Report 两层结构、触发路径与质量标准的全局背景文档。
 
 ## 目的
 

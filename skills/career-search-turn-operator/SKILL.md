@@ -5,79 +5,40 @@ description: "Bounded job-discovery search turn. Use when the platform asks you 
 
 # Career Search Turn Operator
 
-## 角色
-你是一个 bounded search operator。在**平台已经创建好的一个 search session** 里执行搜索循环，
-产出 candidate evidence。你**不**创建/结束 session、**不**跑 processing pipeline、**不**写 db、
-**不**生成任何 report。
+你是一个 **bounded search operator**。在**平台已经创建好的一个 search session** 里执行搜索循环，产出 candidate evidence。你**不**创建/结束 session、**不**跑 processing pipeline、**不**写 db、**不**生成任何 report。
 
 ```
-Worker owns workflow + session lifecycle.  Agent owns bounded search action.  Service owns persistence.
+Worker owns workflow + session lifecycle.  Agent owns the bounded search action.  Service owns persistence.
 ```
 
-## 使用前必读
-1. `AGENTS.md` — 项目边界
-2. `protocols/AGENT_IO_CONTRACT.md` — I/O 契约
-3. `protocols/SEARCH_STRATEGY_PROTOCOL.md` — search 策略
-4. `protocols/DATA_POLICY.md` — source 限制
+## 这个 skill 是 self-contained 的
 
-## 输入
-平台在消息里给你一个 task spec 文件路径，读它（不要靠记忆）：
+执行本任务**只需读下面 5 个 skill-local references**（一跳直达，全部只服务本 bounded turn）。不需要去读 `protocols/SEARCH_STRATEGY_PROTOCOL.md`（那是 legacy 全流程文档，含 session lifecycle / board_sync 等**不适用**本 turn 的内容）。
 
-```json
-{
-  "session_id": "2026-06-14_030203",
-  "profile_name": "...",
-  "search_brief": "...",
-  "max_queries": 30,
-  "max_pages": 40,
-  "expected_output_paths": {
-    "coverage_draft": ".../runs/<session_id>/coverage_draft.md"
-  }
-}
-```
+1. `skills/career-search-turn-operator/references/search_turn_io.md` — 输入 spec、产物路径、平台前后做什么、硬性「不做」
+2. `skills/career-search-turn-operator/references/search_strategy.md` — 目标导向策略、每 5 query 自评、停止条件
+3. `skills/career-search-turn-operator/references/candidate_admission_gate.md` — **最硬规则**：入池条件 + provenance + 工具机制
+4. `skills/career-search-turn-operator/references/coverage_draft_template.md` — `coverage_draft.md` 固定格式与路径
+5. `skills/career-search-turn-operator/references/data_policy_summary.md` — source / 存储 / budget 边界
 
-`session_id` 已由平台创建。后续所有 wrapper 调用都用这个 `--session-id`。
+`AGENTS.md`（项目边界）由平台自动注入；`protocols/AGENT_IO_CONTRACT.md` / `protocols/DATA_POLICY.md` 仍是全局背景文档，需要细节时可查，但本 turn 的全部要求已在上面 references 内。
 
-## 流程
+## 流程（概览）
 
-### Step 1：确认 session（不创建）
-```bash
-./wrappers/career_search_status --session-id <session_id>
-```
-确认 session 存在、读当前 budget。**绝不调 `career_search_session start`。**
+1. **读 task spec**（路径在 prompt 里）→ 拿到 `session_id` 和 `expected_output_paths.coverage_draft`。
+2. **`career_search_status --session-id <id>`** 确认 session、读 budget。**绝不 `career_search_session start`。**
+3. **搜索循环**（细则见 `candidate_admission_gate.md`）：
+   `web_search` → `career_search_session log-query`（每次 search 必做）→ `web_fetch`（逐个候选确认）→ `career_log_candidates`（确认的入池）。
+   每 5 query 看一次 `career_search_status` 自评（见 `search_strategy.md`）。
+4. **写 `coverage_draft.md`** 到 spec 路径（格式见 `coverage_draft_template.md`），然后 **STOP**。
 
-### Step 2：Search Loop
-每轮：
-1. `web_search` — 执行一次搜索
-2. `web_fetch` — 对每个候选 URL 单独 fetch，确认真实 JD 内容（不能跳过）
-3. `./wrappers/career_search_session log-query --session-id <id> ...` — 记录 query + 结果（每次 search 后必做）
-4. `./wrappers/career_log_candidates --session-id <id> ...` — 确认的候选入池
+## 禁止行为（速查）
 
-**URL 入池必要条件：**
-- 必须是真实 job posting URL，不是搜索结果页或公司主页
-- 必须 `web_fetch` 确认内容，不能只凭 snippet 推断
-- 没有真实 URL 的候选不入池（工具返回 `rejected_no_url`）
-
-每 5 query 后看一次 `career_search_status` 自评方向（见 SEARCH_STRATEGY_PROTOCOL.md）。
-
-### Step 3：写 coverage draft（结束标志）
-满足任一停止条件后，把 coverage draft 写到 spec 的 `expected_output_paths.coverage_draft` 路径
-（文件名 `coverage_draft.md`）。平台的 end_session 会把它提升为 run 目录下的 `coverage_report.md`。
-**写完即结束你的工作，不要再做别的。**
-
-## Stop Conditions（任一满足）
-1. 候选数量达到目标（通常 ≥20）
-2. 主要 source families 已覆盖
-3. 连续 ≥3 次策略调整仍 0 新候选
-4. Budget 耗尽（30 queries / 40 fetched pages）
-
-## 禁止行为
-- 不 `career_search_session start` / 不 `career_search_session end`（session 生命周期归平台）
-- 不跑 processing pipeline、不写 db/jobs、不生成 run_summary
-- 不生成 Job Report / Fit Report、不调 role analysis
-- 不调 `career_update_strategy`、不 board_sync / register_board（本期不在 bounded turn 内）
-- 不能登录平台、绕过 paywall；不把搜索结果页 URL 当 JD URL 入池
+- 不 `career_search_session start` / `end`；不 `career_sync_board` / `career_register_board` / `career_classify_source`。
+- 不跑 pipeline、不写 db、不写 report、不调 role analysis、不调 `career_update_strategy`。
+- 不把搜索结果页 / 公司主页当 candidate URL；不登录 / 不绕过 paywall。
+- 不用 `exec python3 -c` 或 heredoc 内联脚本——exec 只用于 `./wrappers/*`。
 
 ## 完成标志
-`coverage_draft.md` 已写到 spec 指定路径，且 candidate_pool 里的每个候选都来自真实 `web_search` + `web_fetch`
-（平台会用 run log 里的真实 tool-call 做反捏造校验）。
+
+`coverage_draft.md` 已写到 spec 指定路径，且 `candidate_pool` 里每个候选都来自真实 `web_search` + `web_fetch`（平台用 run log 的真实 tool-call 做反捏造校验）。

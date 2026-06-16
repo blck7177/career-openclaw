@@ -25,6 +25,49 @@ SESSION_DIR_NAMES = [
     "raw_jds",
 ]
 
+# Canonical query-ledger input fields. Single source of truth shared with
+# schemas/search_query.schema.json and the career_search_session log-query CLI.
+# Anything outside this set is rejected (no silent splat of mistyped keys).
+_KNOWN_QUERY_FIELDS = frozenset({
+    "query_id",
+    "query_text",
+    "search_intent",
+    "query_type",
+    "query_family",
+    "derived_from",
+    "results_seen",
+    "new_terms_discovered",
+    "source_type",
+    "observed_failure_mode",
+    "valid_url_count",
+    "candidate_yield",
+})
+
+# Convenience aliases an agent is likely to use for the query string. Mapped to
+# the canonical key so a natural `{"query": "..."}` does not produce a malformed
+# ledger entry that slips past the provenance gate.
+_QUERY_FIELD_ALIASES = {
+    "query": "query_text",
+    "text": "query_text",
+}
+
+
+def _normalize_query_data(
+    query_data: dict[str, Any],
+) -> tuple[dict[str, Any], list[str]]:
+    """
+    Map known aliases to canonical keys and collect any unknown top-level fields.
+
+    Returns (normalized_dict, unknown_fields). The caller rejects the query when
+    unknown_fields is non-empty rather than silently storing mistyped keys.
+    """
+    normalized: dict[str, Any] = {}
+    for key, value in query_data.items():
+        canonical = _QUERY_FIELD_ALIASES.get(key, key)
+        normalized[canonical] = value
+    unknown = sorted(set(normalized) - _KNOWN_QUERY_FIELDS)
+    return normalized, unknown
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -216,6 +259,25 @@ def log_query(
     sdir = session_dir(workspace_root, session_id)
     if not sdir.exists():
         return {"error": f"Session {session_id} not found"}
+
+    # Normalize aliases (query -> query_text) and reject mistyped fields so a
+    # malformed ledger entry cannot slip past the provenance gate.
+    query_data, unknown = _normalize_query_data(query_data)
+    if unknown:
+        return {
+            "error": (
+                f"Unknown query field(s): {unknown}. "
+                f"Allowed fields: {sorted(_KNOWN_QUERY_FIELDS)}."
+            ),
+            "unknown_fields": unknown,
+        }
+    if not str(query_data.get("query_text") or "").strip():
+        return {
+            "error": (
+                "Missing required field 'query_text' (inline alias: 'query'). "
+                "Log the actual search query string you ran."
+            ),
+        }
 
     status = get_session_status(workspace_root, session_id)
     budget = status.get("budget", {})

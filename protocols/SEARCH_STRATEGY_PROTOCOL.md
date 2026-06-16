@@ -1,5 +1,15 @@
 # Search Strategy Protocol
 
+> ⚠️ **适用范围**：本文档是 **legacy / 手动 `career-intel` monolith** 的**全流程**搜索策略文档，
+> 含 session 生命周期（`career_search_session start`/`end`）、`board_sync`、source routing、
+> 把 `coverage_report.md` 写到 `agent_work/drafts/` 等内容——这些 **不适用** 生产的 bounded
+> `career-search-agent`。
+>
+> 生产 bounded search turn **不读本文件**，改读 self-contained skill 包：
+> `skills/career-search-turn-operator/SKILL.md` + 其 `references/`（`search_turn_io.md` /
+> `search_strategy.md` / `candidate_admission_gate.md` / `coverage_draft_template.md` /
+> `data_policy_summary.md`）。本文件保留为 legacy 参考与策略思想的全量背景。
+
 Search is an agent-led research loop. You own the objective, not the steps.
 
 ---

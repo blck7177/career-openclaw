@@ -73,16 +73,66 @@ def status(session_id: str) -> None:
 
 @main.command("log-query")
 @click.option("--session-id", required=True)
-@click.option("--query-file", required=True, help="Path to JSON file with query data")
-def log_query_cmd(session_id: str, query_file: str) -> None:
-    """Log a web search query and its results to the search ledger."""
-    qpath = Path(query_file)
-    if not qpath.exists():
-        click.echo(json.dumps({"error": f"query-file not found: {query_file}"}))
+@click.option(
+    "--query-file",
+    default=None,
+    help="Path to JSON file with rich query data (use this when you want results_seen, etc.)",
+)
+@click.option(
+    "--query-text",
+    default=None,
+    help="Inline query string actually searched (one-shot alternative to --query-file)",
+)
+@click.option(
+    "--source-type",
+    default=None,
+    help="company_career_page | ats_board | aggregator | recruiter_post | unknown",
+)
+@click.option("--query-family", default=None, help="Query family label (from profile keywords)")
+@click.option("--valid-url-count", default=None, type=int, help="How many results were real JD URLs")
+@click.option("--candidate-yield", default=None, type=int, help="How many candidates this query added")
+@click.option(
+    "--failure-mode",
+    "observed_failure_mode",
+    default=None,
+    help="none | blocked_403 | no_results | fake_urls | search_result_pages_only | other",
+)
+def log_query_cmd(
+    session_id: str,
+    query_file: str | None,
+    query_text: str | None,
+    source_type: str | None,
+    query_family: str | None,
+    valid_url_count: int | None,
+    candidate_yield: int | None,
+    observed_failure_mode: str | None,
+) -> None:
+    """Log a web search query to the ledger (inline via --query-text, or rich JSON via --query-file)."""
+    if query_file:
+        qpath = Path(query_file)
+        if not qpath.exists():
+            click.echo(json.dumps({"error": f"query-file not found: {query_file}"}))
+            sys.exit(1)
+        query_data = json.loads(qpath.read_text())
+    elif query_text:
+        query_data = {"query_text": query_text}
+        for key, val in (
+            ("source_type", source_type),
+            ("query_family", query_family),
+            ("valid_url_count", valid_url_count),
+            ("candidate_yield", candidate_yield),
+            ("observed_failure_mode", observed_failure_mode),
+        ):
+            if val is not None:
+                query_data[key] = val
+    else:
+        click.echo(json.dumps({"error": "Provide --query-text (inline) or --query-file (JSON)"}))
         sys.exit(1)
-    query_data = json.loads(qpath.read_text())
+
     result = log_query(WORKSPACE_ROOT, session_id, query_data)
     _print_json(result)
+    if result.get("error"):
+        sys.exit(1)
     if result.get("budget_exceeded"):
         sys.exit(2)
 
