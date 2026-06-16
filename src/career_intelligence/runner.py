@@ -21,6 +21,12 @@ import yaml
 
 from .classifier import classify_workstream
 from .connectors.connector_router import load_company_boards, route as connector_route
+from .contracts import (
+    FETCH_STATUS_FAILED,
+    FETCH_STATUS_PARTIAL,
+    FETCH_STATUS_SUCCESS,
+    SOURCE_TYPE_UNKNOWN,
+)
 from .extractor import extract_fields
 from .fetcher import FetchResult, save_raw_jd
 from .llm_role_context import get_llm_role_context
@@ -125,7 +131,7 @@ def run_processing_pipeline(
         location = cand.get("location", "")
         job_id = _job_id(url)
         # source_type will be set by the connector; use a placeholder until fetch
-        source_type = "unknown"
+        source_type = SOURCE_TYPE_UNKNOWN
 
         log_step(run_dir, "fetch_start", job_id, "started", {"url": url})
 
@@ -134,10 +140,10 @@ def run_processing_pipeline(
         if url:
             fetch_result = connector_route(url, boards_registry)
         else:
-            fetch_result = FetchResult(status="failed", error="no URL provided", source_type="unknown")
+            fetch_result = FetchResult(status=FETCH_STATUS_FAILED, error="no URL provided", source_type=SOURCE_TYPE_UNKNOWN)
 
         raw_jd_path = ""
-        if fetch_result.status in ("success", "partial_success"):
+        if fetch_result.status in (FETCH_STATUS_SUCCESS, FETCH_STATUS_PARTIAL):
             stats["jobs_fetched"] += 1
             raw_jd_path = save_raw_jd(fetch_result.text, run_dir / "raw_jds", job_id)
             log_step(run_dir, "fetch_done", job_id, "success", {
@@ -154,7 +160,7 @@ def run_processing_pipeline(
                 "retryable": fetch_result.retryable,
                 "recommended_next_actions": fetch_result.recommended_next_actions,
             })
-            if fetch_result.status == "failed":
+            if fetch_result.status == FETCH_STATUS_FAILED:
                 stats["jobs_failed"] += 1
                 continue
 

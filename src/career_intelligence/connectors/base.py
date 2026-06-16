@@ -10,6 +10,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
 
+from ..contracts import FETCH_STATUS_PARTIAL, FETCH_STATUS_SUCCESS, SOURCE_TYPE_HTML
 from ..fetcher import FetchResult
 
 
@@ -20,15 +21,15 @@ class NormalizedJob:
     title: str
     company: str
     location: str = ""
-    description_text: str = ""   # plain text JD, used as `text` in FetchResult
-    source_type: str = "html"    # connector type that produced this record
-    job_external_id: str = ""    # ATS-native ID
+    description_text: str = ""              # plain text JD, used as `text` in FetchResult
+    source_type: str = SOURCE_TYPE_HTML     # connector type that produced this record
+    job_external_id: str = ""               # ATS-native ID
     extra: dict = field(default_factory=dict)
 
     def to_fetch_result(self) -> FetchResult:
         """Convert to a FetchResult compatible with the existing runner pipeline."""
         return FetchResult(
-            status="success" if self.description_text else "partial_success",
+            status=FETCH_STATUS_SUCCESS if self.description_text else FETCH_STATUS_PARTIAL,
             text=self.description_text,
             content_length=len(self.description_text),
             source_type=self.source_type,

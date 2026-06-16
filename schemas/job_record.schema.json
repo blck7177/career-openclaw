@@ -28,14 +28,19 @@
     "location": { "type": "string" },
     "source_url": { "type": "string", "format": "uri" },
     "source_type": {
+      "comment": "Keep in sync with career_intelligence.contracts.JOB_RECORD_SOURCE_TYPES (locked by tests/test_record_enum_contracts.py).",
       "type": "string",
       "enum": [
-        "company_career_page", "linkedin", "indeed", "glassdoor", "google_search", "manual",
-        "greenhouse", "lever", "ashby", "workday"
+        "greenhouse", "lever", "ashby", "workday", "html", "manual",
+        "company_career_page", "linkedin", "indeed", "glassdoor", "google_search"
       ]
     },
     "date_found": { "type": "string", "format": "date" },
-    "fetch_status": { "type": "string", "enum": ["success", "failed", "manual"] },
+    "fetch_status": {
+      "comment": "Keep in sync with career_intelligence.contracts.JOB_RECORD_FETCH_STATUSES (locked by tests/test_record_enum_contracts.py).",
+      "type": "string",
+      "enum": ["success", "partial_success", "failed", "manual"]
+    },
     "raw_jd_path": { "type": "string" },
     "responsibilities": { "type": "array", "items": { "type": "string" } },
     "required_skills": { "type": "array", "items": { "type": "string" } },
