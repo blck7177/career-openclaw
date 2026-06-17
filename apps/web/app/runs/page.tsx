@@ -1,8 +1,9 @@
-import { listRuns, type RunMeta } from "@/lib/api";
+import { listRuns, listProfiles, type RunMeta, type CandidateProfile } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { Clock, CheckCircle2, XCircle, Circle } from "lucide-react";
 import RunDiscoveryButton from "@/components/RunDiscoveryButton";
+import StartDiscoveryButton from "@/components/StartDiscoveryButton";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,10 @@ function fmtTs(iso: string | null) {
 }
 
 export default async function RunsPage() {
-  const runs = await listRuns(100).catch(() => [] as RunMeta[]);
+  const [runs, profiles] = await Promise.all([
+    listRuns(100).catch(() => [] as RunMeta[]),
+    listProfiles().catch(() => [] as CandidateProfile[]),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -43,7 +47,10 @@ export default async function RunsPage() {
           <h1 className="text-2xl font-bold">Search Runs</h1>
           <p className="text-muted-foreground text-sm mt-1">{runs.length} run{runs.length !== 1 ? "s" : ""} total</p>
         </div>
-        <RunDiscoveryButton />
+        <div className="flex gap-2 items-start flex-wrap">
+          <StartDiscoveryButton profiles={profiles} />
+          <RunDiscoveryButton />
+        </div>
       </div>
 
       {runs.length === 0 ? (

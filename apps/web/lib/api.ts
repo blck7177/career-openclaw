@@ -382,3 +382,35 @@ export async function getAgentRun(
   if (operatorToken) headers["X-Operator-Token"] = operatorToken;
   return req<AgentRunTask>(`/api/operator/agent-runs/${taskId}`, { headers });
 }
+
+// ---------------------------------------------------------------------------
+// User-facing discovery runs
+// ---------------------------------------------------------------------------
+
+export interface DiscoveryRunRequest {
+  profile_id: string;
+  user_instruction?: string;
+  requested_mode?: "auto" | "directed_discovery" | "profile_based_exploration" | "gap_fill_discovery";
+  max_queries?: number;
+  max_pages?: number;
+}
+
+export interface DiscoveryRunResponse {
+  task_id: string;
+  run_id: string;
+  message: string;
+  requested_mode: string;
+}
+
+export async function enqueueDiscoveryRun(
+  body: DiscoveryRunRequest,
+): Promise<DiscoveryRunResponse> {
+  return req<DiscoveryRunResponse>("/api/discovery-runs", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function getDiscoveryRun(taskId: string): Promise<Task> {
+  return req<Task>(`/api/discovery-runs/${taskId}`);
+}
