@@ -2,10 +2,10 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "search_agent_input.schema.json",
   "title": "SearchAgentInputSpec",
-  "description": "The structured task spec the worker writes for the bounded career-search-agent (agent_service._search_input_spec). The agent reads this file instead of relying on a long prompt: it carries the already-created session_id, the workspace that session lives in, the search budget, and the fixed output path. Built by the worker, consumed by the career-search-turn-operator skill.",
+  "description": "The structured task spec the worker writes for the bounded career-search-agent (agent_service._search_input_spec). The agent reads this file to learn the session_id, workspace, search contract, catalog and strategy context, and the expected output paths. Built by the worker, consumed by the career-discovery-operator skill.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["session_id", "workspace_id", "profile_name", "search_brief", "expected_output_paths"],
+  "required": ["session_id", "workspace_id", "search_request", "budget", "expected_output_paths"],
   "properties": {
     "session_id": {
       "type": "string",
@@ -15,36 +15,87 @@
     "workspace_id": {
       "type": "string",
       "minLength": 1,
-      "description": "Workspace the session lives in; pass to every wrapper via --workspace-id so writes land in the right workspace."
+      "description": "Workspace the session lives in; pass to every wrapper via --workspace-id."
     },
-    "profile_name": {
-      "type": "string",
-      "minLength": 1,
-      "description": "Search profile name from configs/search_profiles.yaml."
+    "search_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["raw_user_request", "profile_name"],
+      "properties": {
+        "raw_user_request": {
+          "type": "string",
+          "description": "Free-text objective or user instruction for this discovery run."
+        },
+        "profile_name": {
+          "type": "string",
+          "description": "Search profile name (configs/search_profiles.yaml) or candidate_profile_id."
+        },
+        "profile_summary": {
+          "type": "string",
+          "description": "Human-readable summary of the candidate profile."
+        },
+        "discovery_intent": {
+          "type": "object",
+          "description": "Structured search contract from the Intent Translator. Empty object when triggered via the legacy operator endpoint. Non-empty for user-facing /api/discovery-runs."
+        }
+      }
     },
-    "search_brief": {
-      "type": "string",
-      "description": "Free-text objective for this discovery run."
+    "catalog_context": {
+      "type": "object",
+      "description": "Database-derived snapshot: existing job count and recently-seen companies.",
+      "properties": {
+        "existing_job_count": { "type": "integer" },
+        "recent_companies": { "type": "array", "items": { "type": "string" } }
+      }
     },
-    "max_queries": {
-      "type": "integer",
-      "minimum": 1,
-      "description": "Hard query budget for the session."
+    "strategy_context": {
+      "type": "object",
+      "description": "Reflect-produced cross-run learnings: coverage gaps, source health, query patterns, key learnings, recommended next searches."
     },
-    "max_pages": {
-      "type": "integer",
-      "minimum": 1,
-      "description": "Hard fetch-page budget for the session."
+    "source_context": {
+      "type": "object",
+      "description": "Paths to source configuration files (company_boards.yaml, source_policy.yaml).",
+      "properties": {
+        "company_boards_path": { "type": "string" },
+        "source_policy_path": { "type": "string" }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_queries", "max_pages"],
+      "properties": {
+        "max_queries": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Hard query budget for the session."
+        },
+        "max_pages": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Hard fetch-page budget for the session."
+        },
+        "max_board_syncs": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Hard board-sync budget (career_sync_board calls)."
+        }
+      }
     },
     "expected_output_paths": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["coverage_draft"],
+      "required": ["coverage_report"],
       "properties": {
-        "coverage_draft": {
+        "coverage_report": {
           "type": "string",
           "minLength": 1,
-          "description": "Absolute path the agent must write coverage_draft.md to; the gateway judges completion by its existence."
+          "description": "Absolute path the agent must write coverage_report.md to; the gateway judges completion by its existence."
+        },
+        "discovery_notes": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional path for discovery_notes.md (new source discoveries, strategy observations)."
         }
       }
     }

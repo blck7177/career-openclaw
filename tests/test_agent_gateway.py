@@ -64,7 +64,7 @@ def test_tool_schema_entry_is_not_a_call():
     ) is None
     assert agent_gateway._tool_call_from_content_item(
         {"type": "toolCall", "name": "web_fetch", "arguments": {"url": "https://x.com/j"}}
-    ) == {"tool": "web_fetch", "url": "https://x.com/j"}
+    ) == {"tool": "web_fetch", "action_type": "web_fetch", "url": "https://x.com/j"}
 
 
 def test_extract_tool_calls_from_session_scopes_to_last_turn(tmp_path: Path):
@@ -84,8 +84,8 @@ def test_extract_tool_calls_from_session_scopes_to_last_turn(tmp_path: Path):
     calls = agent_gateway._extract_tool_calls_from_session(session)
 
     assert calls == [
-        {"tool": "web_search", "url": "flex risk"},
-        {"tool": "web_fetch", "url": "https://new.com/job"},
+        {"tool": "web_search", "action_type": "web_search", "url": "flex risk"},
+        {"tool": "web_fetch", "action_type": "web_fetch", "url": "https://new.com/job"},
     ]
     assert all("old.com" not in (c.get("url") or "") for c in calls)
 

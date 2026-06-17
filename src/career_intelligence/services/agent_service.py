@@ -217,6 +217,7 @@ def _search_input_spec(
     strategy_context: dict[str, Any] | None = None,
     profile_summary: str = "",
     repo_root: Path | None = None,
+    discovery_intent: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Rich task spec for the autonomous discovery agent.
@@ -229,6 +230,10 @@ def _search_input_spec(
     catalog_context: database-derived facts (job count, recent companies).
     strategy_context: reflect-produced learnings (coverage gaps, source
         health, query effectiveness, key learnings, recommended searches).
+    discovery_intent: structured search contract from the Intent Translator.
+        When present, the agent uses it to allocate query budget across lanes
+        and enforce hard constraints. When absent, the agent falls back to its
+        autonomous strategy based on profile_name and search_brief.
     """
     source_context: dict[str, Any] = {}
     if repo_root is not None:
@@ -247,6 +252,10 @@ def _search_input_spec(
             "raw_user_request": search_brief,
             "profile_name": profile_name,
             "profile_summary": profile_summary,
+            # Structured search contract from Intent Translator. Non-empty when
+            # the run was triggered via POST /api/discovery-runs with a profile_id.
+            # Empty dict when triggered via the legacy operator endpoint.
+            "discovery_intent": discovery_intent or {},
         },
         # Database-derived: how many jobs already in catalog, recently-seen companies.
         "catalog_context": catalog_context or {},
@@ -382,9 +391,23 @@ def run_discovery_session(
     mode: str = "exploratory",
     max_queries: int = 30,
     max_pages: int = 40,
+    discovery_intent: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Drive a full OpenClaw discovery run (search → validate → process → reflect).
+
+    Args:
+        profile_name:      Search profile name from configs/search_profiles.yaml.
+                           Used as a fallback label when discovery_intent is absent.
+        search_brief:      Free-text objective for the agent (legacy / operator path).
+        mode:              "exploratory" | "refresh".
+        max_queries:       Hard query budget.
+        max_pages:         Hard fetch-page budget.
+        discovery_intent:  Structured search contract from the Intent Translator.
+                           When provided, the agent receives it in search_request
+                           and uses it to allocate query budget across lanes and
+                           enforce hard constraints. When None, the agent falls back
+                           to autonomous strategy based on profile_name + search_brief.
 
     Returns:
         {session_id, run_id, turns_used, search_complete,
@@ -446,6 +469,7 @@ def run_discovery_session(
             strategy_context=strategy_context,
             profile_summary=profile_summary,
             repo_root=repo_root,
+            discovery_intent=discovery_intent,
         ),
         input_spec_path=input_spec_path,
         run_log_path=run_log_path,

@@ -41,7 +41,8 @@ def test_search_input_spec_matches_schema() -> None:
         search_brief="find market risk roles",
         max_queries=30,
         max_pages=40,
-        coverage_path=Path("/data/runs/2026-06-14_030203/coverage_draft.md"),
+        coverage_path=Path("/data/runs/2026-06-14_030203/coverage_report.md"),
+        discovery_notes_path=Path("/data/runs/2026-06-14_030203/discovery_notes.md"),
     )
     errors = validate_against_schema(spec, "search_agent_input.schema.json")
     assert errors == [], errors

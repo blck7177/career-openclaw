@@ -17,7 +17,8 @@ Service owns canonical database.
   "search_request": {
     "raw_user_request": "找 market risk / valuation control 相关岗位",
     "profile_name": "market_risk_nyc",
-    "profile_summary": "..."
+    "profile_summary": "...",
+    "discovery_intent": {}
   },
   "catalog_context": {
     "existing_job_count": 12,
@@ -47,6 +48,9 @@ Service owns canonical database.
   }
 }
 ```
+
+`search_request.discovery_intent` 为空 `{}` 时：按 legacy 模式执行，用 `raw_user_request` + `profile_name` + `strategy_context` 自主决定策略。  
+`search_request.discovery_intent` 非空时：见下方 **"Executing with discovery_intent"** 节。
 
 后续所有 wrapper 调用都必须同时带上 `--session-id <session_id>` **和** `--workspace-id <workspace_id>`。
 
@@ -85,6 +89,81 @@ Service owns canonical database.
 2. **`end_session`**：把你的 `coverage_report.md` 登记到 run 目录，置 `search_complete`。
 3. **`run_processing_pipeline`**：`candidate_pool.jsonl` → fetch/extract/classify/validate → 结构化入库。
 4. **Reflect turn**：驱动 `career-reflect-agent` 更新 strategy state。
+
+## Executing with discovery_intent
+
+当 `search_request.discovery_intent` 非空（有 `intent_kind` 和 `search_lanes`），把它当作 **search contract**。
+
+### 核心规则
+
+**1. Intent Translator decides what to search. You decide how to search.**
+
+`discovery_intent` 里的 lanes 告诉你搜什么方向、分多少 budget、哪些关键词是起点。  
+你仍然自主决定：查哪些 source、怎么扩展 query、怎么处理 board_sync failure、遇到 bot-block 时如何 pivot。
+
+**2. Budget 按 lane 分配**
+
+每个 lane 有 `budget_share`（0–1，所有 lane 合计为 1.0）。用它按比例分配 `budget.max_queries`：
+
+```
+lane_queries = round(budget.max_queries * lane.budget_share)
+```
+
+Budget 执行中可以小幅调整（±1-2 query），但不应大幅偏离 `budget_share` 比例。
+
+**3. 不覆盖 hard constraints**
+
+`global_constraints.hard_constraints` 和 `lane.inherited_hard_constraints` 是强制约束：
+
+- `max_years_experience: 3` → 不把 5-7 年经验的岗位加进 candidate pool
+- `location: NYC only` → 不搜外地岗位
+- `exclude: model_validation` → query seeds 里不加 model validation 主关键词
+
+**4. Query seeds 可以扩展，但必须保持 lane 语义**
+
+`lane.query_seeds` 是起点，你可以：
+- 添加 `site:<ats_domain>` 前缀
+- 加 location qualifier（"NYC", "New York"）
+- 组合两个 seed 词
+
+但不要把 `exposure_management` lane 的 query 扩展成 `stress testing model validation`——那是另一个 lane 的语义。
+
+**5. 每个 logged candidate 标记 lane_id**
+
+用 `career_log_candidates` 时，在 candidates 的 `metadata` 字段（如果 wrapper 支持）里记录 `lane_id`。  
+如果 wrapper 不支持 metadata，在 `discovery_notes.md` 里记录每个 lane 产出了哪些 candidates。
+
+**6. Lane exhausted → 记录，不随意换方向**
+
+一个 lane 用完预算仍然零 yield → 在 `coverage_report.md` 里标记：
+
+```
+lane: exposure_management — exhausted (3 queries, 0 candidates, sources: X/Y/Z)
+```
+
+不要把这个 lane 的剩余 budget 随意挪给另一个方向。如果你有充分理由换 lane 策略，在 `discovery_notes.md` 里说明原因。
+
+**7. 空 discovery_intent → 回退到 legacy 模式**
+
+`discovery_intent` 为空 `{}` 或缺失时，完全忽略本节规则，回退到自主 strategy 模式（参考 `discovery_moves.md`）。
+
+### discovery_intent 字段速查
+
+| 字段 | 你应该怎么用 |
+|---|---|
+| `intent_kind` | 了解这轮 run 的目标性质（directed / exploration / gap_fill） |
+| `global_constraints.hard_constraints` | 强制约束，所有 lane 都适用 |
+| `global_constraints.soft_preferences` | 优先考虑，可在 low-yield 时放宽 |
+| `global_constraints.negative_preferences` | 降权方向，非绝对排除 |
+| `search_lanes[].lane_id` | 用于 candidate 标注和 coverage_report 中的 lane 状态 |
+| `search_lanes[].query_seeds` | 起始 query，可扩展但不能改变 lane 语义 |
+| `search_lanes[].budget_share` | 按比例分配 max_queries |
+| `search_lanes[].exclude_role_keywords` | 扩展 query 时避开这些词 |
+| `search_lanes[].risk_of_false_positive` | 了解这个 lane 最容易走偏的方向 |
+| `source_strategy.prefer_sources` | 优先用于 board_sync / site: 搜索 |
+| `source_strategy.avoid_sources` | 跳过，与 strategy_context.avoid_sources 作用相同 |
+
+---
 
 ## 硬性「不做」（I/O 层）
 

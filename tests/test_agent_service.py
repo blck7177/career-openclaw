@@ -123,7 +123,7 @@ def test_stub_coverage_written_when_agent_skips_it(workspace_root: Path):
     result = _run(_patches(workspace_root, fake))
 
     session_id = result["session_id"]
-    assert (workspace_root / "runs" / session_id / "coverage_draft.md").exists()
+    assert (workspace_root / "runs" / session_id / "coverage_report.md").exists()
     rc = yaml.safe_load((workspace_root / "runs" / session_id / "run_config.yaml").read_text())
     assert rc["status"] == "search_complete"
 
