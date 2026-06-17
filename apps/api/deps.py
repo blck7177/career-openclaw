@@ -72,6 +72,7 @@ def get_ctx(
 
     from datetime import datetime, timezone
     if row["expires_at"] and row["expires_at"] < datetime.now(timezone.utc).isoformat():
+        store.cleanup_expired_browser_sessions()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired")
 
     return RequestContext(

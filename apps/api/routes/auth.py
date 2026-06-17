@@ -23,7 +23,9 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from typing import Annotated
+
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 
 from apps.api.deps import CtxDep, StoreDep, get_store
@@ -128,6 +130,17 @@ def get_me(ctx: CtxDep) -> dict[str, Any]:
 
 
 @router.delete("/logout", status_code=status.HTTP_204_NO_CONTENT)
-def logout(response: Response) -> None:
-    """Clear the session cookie."""
+def logout(
+    response: Response,
+    store: StoreDep,
+    sid: Annotated[str | None, Cookie()] = None,
+) -> None:
+    """Clear the session cookie and revoke the server-side session."""
+    if sid:
+        sid_hash = hashlib.sha256(sid.encode()).hexdigest()
+        with store._conn() as conn:
+            conn.execute(
+                "DELETE FROM browser_sessions WHERE session_token_hash = ?",
+                (sid_hash,),
+            )
     response.delete_cookie(key=_COOKIE_NAME)

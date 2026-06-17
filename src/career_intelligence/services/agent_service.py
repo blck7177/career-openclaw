@@ -504,12 +504,19 @@ def run_discovery_session(
     # Ground truth: tool_calls parsed from the run log (web_search, board_sync,
     # classify_source — all real exec or native tool invocations that the agent
     # cannot fake). Fallback: search ledger's queries_run counter.
+    #
+    # NOTE: total_discovery_actions includes observability wrappers such as
+    # career_search_session log-query. The gate uses real_search_actions
+    # (board_sync + web_search + classify_source) so that a run consisting only
+    # of log-query ledger writes cannot bypass the fabrication check.
     final_status = get_session_status(workspace_root, session_id)
     queries_run = final_status.get("queries_run", 0)
     candidates_captured = final_status.get("candidates_captured", 0)
 
-    # State A: no discovery action → abort.
-    if total_discovery_actions == 0 and queries_run == 0:
+    real_search_actions = web_search_calls + board_sync_calls + classify_calls
+
+    # State A: no real search action → abort.
+    if real_search_actions == 0 and queries_run == 0:
         raise SearchValidationError(
             f"Agent produced 0 real discovery actions (web_search=0, board_sync=0, "
             f"classify_source=0) and 0 logged queries for session {session_id}. "

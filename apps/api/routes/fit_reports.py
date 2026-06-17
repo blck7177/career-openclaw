@@ -55,6 +55,13 @@ def enqueue_fit_report(
     progress.  When status is 'completed', the report is available at
     GET /api/fit-reports/{fit_report_id} (fit_report_id is in task result).
     """
+    if not body.force:
+        existing = task_service.find_active_task(
+            ctx, "fit_report", {"job_id": job_id, "profile_id": body.profile_id}
+        )
+        if existing:
+            return FitEnqueueResponse(task_id=existing["task_id"])
+
     task_id = task_service.create_task(
         ctx,
         task_type="fit_report",

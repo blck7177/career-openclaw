@@ -225,8 +225,11 @@ def _handle_legacy_path(
 def handle_search_run(task: dict[str, Any]) -> None:
     """Claim and execute a search_run task end-to-end."""
     task_id = task["task_id"]
+    run_id: str | None = task.get("run_id")
     payload = task.get("payload", {})
 
+    if run_id:
+        task_service.update_run_status(run_id, "running")
     try:
         # Route to the appropriate path based on payload shape.
         if "profile_id" in payload:
@@ -234,6 +237,8 @@ def handle_search_run(task: dict[str, Any]) -> None:
         else:
             result = _handle_legacy_path(task_id, payload)
 
+        if run_id:
+            task_service.update_run_status(run_id, "completed")
         task_service.complete_task(task_id, result=result)
         logger.info(
             "search_run task %s complete: session=%s queries=%d saved=%d",
@@ -247,8 +252,12 @@ def handle_search_run(task: dict[str, Any]) -> None:
         # Agent produced zero queries — fabrication detected; fail the task so
         # the operator can see it clearly, but don't crash the worker.
         logger.error("search_run task %s validation failure: %s", task_id, exc)
+        if run_id:
+            task_service.update_run_status(run_id, "failed")
         task_service.complete_task(task_id, error=f"SearchValidationError: {exc}")
 
     except AgentRunError as exc:
         logger.error("search_run task %s agent error: %s", task_id, exc)
+        if run_id:
+            task_service.update_run_status(run_id, "failed")
         task_service.complete_task(task_id, error=f"AgentRunError: {exc}")

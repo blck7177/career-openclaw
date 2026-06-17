@@ -66,6 +66,7 @@ class DiscoveryRunRequest(BaseModel):
 
 class DiscoveryRunResponse(BaseModel):
     task_id: str
+    run_id: str
     message: str = "discovery_run task enqueued"
     requested_mode: str
 
@@ -107,6 +108,14 @@ def enqueue_discovery_run(
             detail=f"Candidate profile not found: {body.profile_id}",
         )
 
+    # Enforce at-most-one active search_run per workspace.
+    if task_service.count_active_tasks(ctx, "search_run") >= 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A discovery run is already pending or running for this workspace.",
+        )
+
+    run_id = task_service.create_run(ctx, "discovery")
     task_id = task_service.create_task(
         ctx,
         task_type="search_run",
@@ -117,9 +126,11 @@ def enqueue_discovery_run(
             "max_queries": body.max_queries,
             "max_pages": body.max_pages,
         },
+        run_id=run_id,
     )
     return DiscoveryRunResponse(
         task_id=task_id,
+        run_id=run_id,
         requested_mode=body.requested_mode,
     )
 

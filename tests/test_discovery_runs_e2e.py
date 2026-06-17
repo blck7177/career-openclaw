@@ -114,6 +114,12 @@ class TestDiscoveryRunsAPI:
             "career_intelligence.app_state.workspace_paths.get_data_root",
             lambda: data_root,
         )
+        # task_service imports get_data_root directly, so it must be patched
+        # separately to ensure count_active_tasks / create_task use the test DB.
+        monkeypatch.setattr(
+            "career_intelligence.services.task_service.get_data_root",
+            lambda: data_root,
+        )
         store = MetadataStore.from_data_root(data_root)
         store.init_schema()
         store.bootstrap_dev_workspace()
@@ -152,6 +158,8 @@ class TestDiscoveryRunsAPI:
         assert r.status_code == 202, r.text
         body = r.json()
         assert "task_id" in body
+        assert "run_id" in body
+        assert body["run_id"].startswith("run_")
         assert body["requested_mode"] == "directed_discovery"
 
     def test_enqueue_with_unknown_profile_returns_404(self, client: TestClient) -> None:
@@ -192,6 +200,23 @@ class TestDiscoveryRunsAPI:
     def test_get_unknown_task_returns_404(self, client: TestClient) -> None:
         r = client.get("/api/discovery-runs/task_doesnotexist", headers=_DEV_HEADERS)
         assert r.status_code == 404
+
+    def test_second_enqueue_returns_409(
+        self, client: TestClient, profile_id: str
+    ) -> None:
+        """A second discovery run for the same workspace is rejected with 409."""
+        payload = {
+            "profile_id": profile_id,
+            "user_instruction": "find risk roles",
+            "requested_mode": "directed_discovery",
+        }
+
+        r1 = client.post("/api/discovery-runs", json=payload, headers=_DEV_HEADERS)
+        assert r1.status_code == 202, r1.text
+
+        r2 = client.post("/api/discovery-runs", json=payload, headers=_DEV_HEADERS)
+        assert r2.status_code == 409, r2.text
+        assert "already" in r2.json()["detail"].lower()
 
 
 # ---------------------------------------------------------------------------

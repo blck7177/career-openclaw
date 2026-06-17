@@ -688,3 +688,54 @@ class TestSchemaRoundTrip:
 
         errors = validate_schema(intent)
         assert errors == [], f"Schema errors on full-featured intent: {errors}"
+
+
+# ---------------------------------------------------------------------------
+# Fix 2: profile_id deterministic stamp must override placeholder values
+# ---------------------------------------------------------------------------
+
+
+class TestProfileIdStamp:
+    """Verify that the deterministic stamp overwrites LLM-emitted placeholder
+    profile_id values ('unknown', '', 'none', 'null') with the real profile id
+    from the profile dict."""
+
+    def _call_with_profile_id(self, llm_profile_id: str | None) -> dict:
+        intent = _base_intent()
+        if llm_profile_id is not None:
+            intent["profile_id"] = llm_profile_id
+        profile = _base_profile()  # candidate_profile_id = "prof_test001"
+        return _make_translate_call(intent, profile=profile)
+
+    def test_unknown_is_overwritten_with_real_id(self) -> None:
+        result = self._call_with_profile_id("unknown")
+        assert result["profile_id"] == "prof_test001"
+
+    def test_empty_string_is_overwritten_with_real_id(self) -> None:
+        result = self._call_with_profile_id("")
+        assert result["profile_id"] == "prof_test001"
+
+    def test_none_value_is_overwritten_with_real_id(self) -> None:
+        # LLM omits profile_id entirely (key absent)
+        result = self._call_with_profile_id(None)
+        assert result["profile_id"] == "prof_test001"
+
+    def test_null_string_is_overwritten_with_real_id(self) -> None:
+        result = self._call_with_profile_id("null")
+        assert result["profile_id"] == "prof_test001"
+
+    def test_none_string_is_overwritten_with_real_id(self) -> None:
+        result = self._call_with_profile_id("none")
+        assert result["profile_id"] == "prof_test001"
+
+    def test_real_profile_id_is_preserved(self) -> None:
+        """If the LLM correctly emits the real profile id, it must not be clobbered."""
+        result = self._call_with_profile_id("prof_test001")
+        assert result["profile_id"] == "prof_test001"
+
+    def test_different_valid_id_is_preserved(self) -> None:
+        """A non-placeholder id emitted by the LLM is kept as-is (the LLM may
+        legitimately supply an id that differs from the profile's own id — the
+        stamp only fills in missing/placeholder values)."""
+        result = self._call_with_profile_id("prof_other_123")
+        assert result["profile_id"] == "prof_other_123"

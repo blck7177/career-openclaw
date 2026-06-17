@@ -21,10 +21,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
 from career_intelligence.app_state.workspace_paths import resolve_workspace_root
+
+
+def _split_filter_arg(value: str) -> list[str]:
+    """Split a filter argument on both ',' and ';' (tolerant of either separator)."""
+    return [t.strip().lower() for t in re.split(r"[;,]", value) if t.strip()]
 
 
 def _matches_any(text: str, terms: list[str]) -> bool:
@@ -38,10 +44,11 @@ def _filter_jobs(jobs: list, location_filter: str, title_keywords: str, exclude_
     Apply client-side filters to a list of NormalizedJob objects.
 
     Returns (filtered_jobs, stats) where stats reports how many were dropped by each filter.
+    Accepts both ',' and ';' as separators for all filter arguments.
     """
-    loc_terms = [t.strip().lower() for t in location_filter.split(",") if t.strip()] if location_filter else []
-    kw_terms = [t.strip().lower() for t in title_keywords.split(",") if t.strip()] if title_keywords else []
-    ex_terms = [t.strip().lower() for t in exclude_titles.split(",") if t.strip()] if exclude_titles else []
+    loc_terms = _split_filter_arg(location_filter) if location_filter else []
+    kw_terms = _split_filter_arg(title_keywords) if title_keywords else []
+    ex_terms = _split_filter_arg(exclude_titles) if exclude_titles else []
 
     kept = []
     stats = {"dropped_location": 0, "dropped_title_no_match": 0, "dropped_title_excluded": 0}

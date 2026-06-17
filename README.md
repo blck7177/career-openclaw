@@ -112,7 +112,7 @@ DEV_MODE=1 .venv/bin/uvicorn apps.api.main:app --reload --port 8000
 
 # 终端 2 — Worker
 cd career-openclaw
-PYTHONPATH=. .venv/bin/python -m apps.worker.worker
+.venv/bin/python -m apps.worker.worker
 
 # 终端 3 — Next.js
 cd career-openclaw/apps/web
@@ -153,10 +153,17 @@ career-openclaw/
 │   ├── api/                         ← FastAPI REST API
 │   │   ├── main.py                  ← App 入口（uvicorn apps.api.main:app）
 │   │   ├── deps.py                  ← Auth + RequestContext 注入
-│   │   └── routes/                  ← auth, jobs, runs, reports, tasks
+│   │   ├── routes/                  ← auth, jobs, runs, reports, tasks
+│   │   ├── auth.py              ← 登录 / 登出（服务端撤销 session）
+│   │   ├── tasks.py             ← job_report 入队（含 dedupe）
+│   │   ├── fit_reports.py       ← fit_report 入队（含 dedupe）
+│   │   ├── discovery_runs.py    ← 用户侧 discovery run（Intent Translator pipeline）
+│   │   └── agent_runs.py        ← Operator search run
 │   ├── worker/                      ← 异步任务 worker
-│   │   ├── worker.py                ← poll 主循环（python -m apps.worker.worker）
-│   │   └── handlers/job_report.py   ← job_report 任务处理
+│   │   ├── worker.py                ← poll 主循环（python -m apps.worker.worker，dual-lane）
+│   │   └── handlers/
+│   │       ├── job_report.py        ← job_report 任务处理
+│   │       └── search_run.py        ← search_run 任务处理（legacy + Intent Translator 路径）
 │   └── web/                         ← Next.js 16 前端
 │       ├── app/                     ← App Router 页面
 │       ├── components/              ← nav、analyze-button、shadcn/ui
@@ -170,7 +177,8 @@ career-openclaw/
 │   ├── validator.py                 ← schema 校验
 │   ├── role_analyzer.py             ← Job Intelligence Report 生成（Layer 1 + Layer 2）
 │   ├── app_state/                   ← RequestContext、MetadataStore（SQLite）、WorkspacePaths
-│   ├── services/                    ← job / run / report / task / analysis service
+│   ├── services/                    ← job / run / report / task / analysis / intent service
+│   │   └── intent_translator.py     ← 用户意图 → DiscoveryIntent 结构化转换
 │   └── tools/                       ← CLI adapter（wrappers 的实际实现）
 │
 ├── skills/                          ← OpenClaw skills（生产 agent 工作模式）
@@ -265,15 +273,22 @@ career-openclaw/
 |---|---|---|
 | GET | `/healthz` | 健康检查 |
 | POST | `/auth/invite` | 兑换 invite code，写 session cookie |
+| DELETE | `/auth/logout` | 清除 session cookie 并服务端撤销 session |
 | GET | `/auth/me` | 当前用户/workspace |
 | GET | `/api/jobs` | 列出岗位（workstream / company / since 过滤）|
 | GET | `/api/jobs/{id}` | 岗位详情 |
 | GET | `/api/jobs/{id}/job-report` | 当前 active Job Intelligence Report |
-| POST | `/api/jobs/{id}/analyze` | 入队异步分析 → 202 + task_id |
+| POST | `/api/jobs/{id}/analyze` | 入队 job_report 异步分析 → 202 + task_id（支持 dedupe）|
 | GET | `/api/tasks/{id}` | 查询任务状态 |
 | GET | `/api/runs` | Run 列表 |
 | GET | `/api/runs/{id}` | Run 详情 |
 | GET | `/api/runs/{id}/summary` | Run summary markdown |
+| GET | `/api/profiles` | Candidate profile 列表 |
+| POST | `/api/fit-reports` | 入队 fit_report 异步生成 → 202 + task_id（支持 dedupe）|
+| POST | `/api/discovery-runs` | 用户侧触发 discovery run（Intent Translator → search agent）→ 202 + task_id + run_id |
+| GET | `/api/discovery-runs/{task_id}` | 查询 discovery run 状态 |
+| POST | `/api/operator/agent-runs` | Operator 触发 catalog search run → 202 + task_id + run_id |
+| GET | `/api/operator/agent-runs/{task_id}` | 查询 operator search run 状态 |
 
 ---
 
@@ -302,11 +317,11 @@ OpenClaw agent
 
 ---
 
-## 当前状态（2026-06-12）
+## 当前状态（2026-06-17）
 
 - `data/workspaces/dev_default/db/jobs.jsonl` 已收录 **~50 条**结构化岗位记录
 - 已完成 **16+ 次** run，五阶段 pipeline 全部模块稳定运行
-- **Phase 2 Web 平台 Sprint 0–3 全部完成**，52/52 tests pass，0 lints
+- **Phase 2 Web 平台 Sprint 0–4 全部完成**，**223/223 tests pass**，0 lints
 - Docker infra 已就绪（api + worker）
 
 ### Phase 2 完成情况
@@ -317,7 +332,25 @@ OpenClaw agent
 | Sprint 1 | Service layer（job / run / report / task service）、FastAPI read/write 端点 | ✅ 完成 |
 | Sprint 2 | Next.js 16 App Router UI（Dashboard、Jobs、Runs、Report viewer、Auth）| ✅ 完成 |
 | Sprint 3 | Analysis service（缓存/supersede）、Worker（异步生成）、Analyze button、Docker infra | ✅ 完成 |
-| Sprint 4+ | Candidate Fit Report、web 触发 search/process、生产 auth 加固 | 计划中 |
+| Sprint 4 | Session 加固、Run Record 串联、并发控制、Intent Translator + Discovery Runs API | ✅ 完成 |
+| Sprint 5+ | Lock table（artifact race 防护）、前端触发 discovery、生产部署 | 计划中 |
+
+### Sprint 4 详细完成项（2026-06-17）
+
+| 类别 | 修复项 | 说明 |
+|---|---|---|
+| Session 加固 | Logout 服务端撤销 | `DELETE FROM browser_sessions` on logout |
+| Session 加固 | Task `created_by` 审计字段 | `created_by_user_id` / `created_by_session_id` 写入 task_queue |
+| Session 加固 | 过期 session 惰性清理 | `deps.py` 在 401 时顺手 DELETE 过期行 |
+| Run Record 串联 | API 创建 run record | `POST /api/discovery-runs` 和 `POST /api/operator/agent-runs` 均先 `create_run()` 再 `create_task(run_id=)` |
+| Run Record 串联 | Worker 更新 run status | `search_run` handler：pending → running → completed/failed 全链路同步 |
+| 并发控制 | job_report / fit_report dedupe | enqueue 前检查 active task，`force=False` 时直接返回已有 task_id |
+| 并发控制 | search_run per-workspace 限流 | `count_active_tasks >= 1` 时返回 HTTP 409 |
+| 并发控制 | 原子 claim（RETURNING） | `claim_next_pending_task` 改为 `UPDATE … RETURNING *` 消除边界条件 |
+| Worker | Dual-lane 配置 | `WORKER_TASK_TYPES` 环境变量控制 fast lane / agent lane 分离 |
+| Intent Translator | 用户意图解析 | `intent_translator.py` 将自然语言 instruction 转化为结构化 `DiscoveryIntent` |
+| Discovery Runs API | 用户侧触发 discovery | `POST /api/discovery-runs` + poll `GET /api/discovery-runs/{task_id}` |
+| 测试 | pytest 配置修复 | `pyproject.toml` 加 `pythonpath = ["."]`，裸跑 `pytest` 无需 `PYTHONPATH=.` |
 
 ### Workstream 覆盖情况
 

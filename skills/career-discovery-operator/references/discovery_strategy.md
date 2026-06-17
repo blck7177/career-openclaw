@@ -32,6 +32,21 @@ query family、source 策略、目标公司、术语、relevance 标准、探索
 - Evidence 要求（见 `candidate_evidence_contract.md`）
 - 工具机制：搜索只能用 `web_search` 工具，不能用 `web_fetch` 抓搜索引擎结果页
 
+## Board Sync 0-yield 后的强制 pivot
+
+当 `career_sync_board` 返回 `would_keep=0` 或 `keep=0` 时：
+
+1. 这是一个 **strategy failure 信号**，不是探索完成信号。
+2. **不要立即写 coverage_report**。
+3. 必须在停止前至少执行以下一项：
+   - 同一 board 放宽或去掉 `--location-filter` 再试一次（确认是 filter 问题还是 board 本身无岗位）
+   - 切换到 `company_boards.yaml` 里其他 `status: active` 的公司做 board_sync（Source Pivot）
+   - 执行至少 1 次 `web_search`（Move 2 或 Move 4）寻找新来源
+
+只有完成上述 pivot 且仍然 0 结果，才能将其归因为"真实 no-yield"并写入 coverage_report。
+
+---
+
 ## 每 5 次 discovery action 后自评（简短）
 
 每 5 次 discovery action 调一次 `career_search_status`，给自己回答（每条 1–2 句，不是给用户的汇报）：

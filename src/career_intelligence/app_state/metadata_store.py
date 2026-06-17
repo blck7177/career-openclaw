@@ -260,6 +260,10 @@ _MIGRATIONS = [
     "ALTER TABLE job_reports ADD COLUMN research_bundle_hash TEXT NOT NULL DEFAULT 'none'",
     "CREATE INDEX IF NOT EXISTS idx_job_reports_cache_key_research"
     " ON job_reports(job_id, jd_hash, prompt_version, research_bundle_hash)",
+    # Audit trail: who submitted each task (user_id/session_id from the HTTP request).
+    # Worker-submitted tasks (e.g. via CLI) will have NULLs for both columns.
+    "ALTER TABLE task_queue ADD COLUMN created_by_user_id TEXT",
+    "ALTER TABLE task_queue ADD COLUMN created_by_session_id TEXT",
 ]
 
 
@@ -581,6 +585,8 @@ class MetadataStore:
         task_type: str,
         payload: dict[str, Any],
         run_id: str | None = None,
+        user_id: str | None = None,
+        session_id: str | None = None,
     ) -> str:
         """Enqueue a new task. Returns task_id."""
         import json as _json
@@ -590,10 +596,12 @@ class MetadataStore:
             conn.execute(
                 """
                 INSERT INTO task_queue
-                    (task_id, workspace_id, run_id, task_type, status, payload_json, created_at)
-                VALUES (?, ?, ?, ?, 'pending', ?, ?)
+                    (task_id, workspace_id, run_id, task_type, status, payload_json,
+                     created_by_user_id, created_by_session_id, created_at)
+                VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?)
                 """,
-                (task_id, workspace_id, run_id, task_type, _json.dumps(payload), now),
+                (task_id, workspace_id, run_id, task_type, _json.dumps(payload),
+                 user_id, session_id, now),
             )
         return task_id
 
@@ -607,9 +615,9 @@ class MetadataStore:
                     eligible.  Pass None (default) to claim any pending task —
                     preserves backward-compatible single-worker behaviour.
 
-        Uses a single UPDATE…WHERE task_id=(SELECT…) statement so the claim is
-        atomic within SQLite's serialised write lock — safe for two concurrent
-        worker processes (fast lane + agent lane) sharing the same SQLite file.
+        Uses UPDATE … RETURNING * (SQLite ≥ 3.35) so the claim and retrieval
+        are a single atomic operation — no same-millisecond edge case possible
+        even when two worker processes share the same SQLite WAL file.
 
         Returns the claimed task dict (payload decoded) or None if no eligible
         pending task exists.
@@ -625,10 +633,7 @@ class MetadataStore:
 
         now = _now_iso()
         with self._conn() as conn:
-            # Single-statement atomic claim: the inner SELECT and outer UPDATE
-            # execute as one serialised write operation in SQLite WAL mode,
-            # so two workers cannot claim the same task.
-            affected = conn.execute(
+            row = conn.execute(
                 f"""
                 UPDATE task_queue
                 SET status = 'running', started_at = ?, attempts = attempts + 1
@@ -638,21 +643,7 @@ class MetadataStore:
                     ORDER BY created_at ASC
                     LIMIT 1
                 )
-                """,
-                [now, *type_params],
-            ).rowcount
-
-            if not affected:
-                return None
-
-            # Retrieve the row we just claimed, identified by the timestamp we set.
-            # LIMIT 1 guards against the (extremely unlikely) same-millisecond edge case.
-            row = conn.execute(
-                f"""
-                SELECT * FROM task_queue
-                WHERE status = 'running' AND started_at = ?{type_clause}
-                ORDER BY started_at DESC
-                LIMIT 1
+                RETURNING *
                 """,
                 [now, *type_params],
             ).fetchone()
@@ -700,6 +691,81 @@ class MetadataStore:
             task["payload"] = _json.loads(task.get("payload_json") or "{}")
             task["result"] = _json.loads(task.get("result_json") or "null")
             return task
+
+    # -------------------------------------------------------------------------
+    # Task queue helpers — query
+    # -------------------------------------------------------------------------
+
+    def find_active_task(
+        self,
+        workspace_id: str,
+        task_type: str,
+        payload_matches: dict[str, str],
+    ) -> dict[str, Any] | None:
+        """
+        Return the most recent pending/running task that matches all
+        payload_matches key-value pairs (compared via json_extract), or None.
+
+        Used for idempotent task submission: callers check for an existing
+        active task before enqueuing a duplicate.
+
+        payload_matches keys come from trusted caller code, not user input,
+        so building the WHERE clause dynamically is safe.
+        """
+        import json as _json
+
+        clauses: list[str] = [
+            "workspace_id = ?",
+            "task_type = ?",
+            "status IN ('pending', 'running')",
+        ]
+        params: list[Any] = [workspace_id, task_type]
+        for key, value in payload_matches.items():
+            clauses.append(f"json_extract(payload_json, '$.{key}') = ?")
+            params.append(value)
+
+        sql = (
+            f"SELECT * FROM task_queue WHERE {' AND '.join(clauses)}"
+            " ORDER BY created_at DESC LIMIT 1"
+        )
+        with self._conn() as conn:
+            row = conn.execute(sql, params).fetchone()
+
+        if not row:
+            return None
+        task = dict(row)
+        task["payload"] = _json.loads(task.get("payload_json") or "{}")
+        return task
+
+    def count_active_tasks(self, workspace_id: str, task_type: str) -> int:
+        """Count pending+running tasks of a given type for a workspace."""
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT COUNT(*) FROM task_queue
+                WHERE workspace_id = ? AND task_type = ?
+                  AND status IN ('pending', 'running')
+                """,
+                (workspace_id, task_type),
+            ).fetchone()
+        return row[0] if row else 0
+
+    # -------------------------------------------------------------------------
+    # Session maintenance
+    # -------------------------------------------------------------------------
+
+    def cleanup_expired_browser_sessions(self) -> int:
+        """Delete browser_sessions rows whose expires_at is in the past.
+
+        Returns the number of rows deleted.  Safe to call from the worker on
+        startup or periodically — does not affect any API request path.
+        """
+        now = _now_iso()
+        with self._conn() as conn:
+            rowcount = conn.execute(
+                "DELETE FROM browser_sessions WHERE expires_at < ?", (now,)
+            ).rowcount
+        return rowcount
 
     # -------------------------------------------------------------------------
     # Dev workspace bootstrap

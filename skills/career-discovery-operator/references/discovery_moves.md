@@ -33,8 +33,8 @@
 ./wrappers/career_sync_board \
   --source <ats_type> --slug <company_slug> \
   --session-id <session_id> --workspace-id <workspace_id> \
-  --location-filter "<loc_1>;<loc_2>" \
-  --title-keywords "<keyword_1>;<keyword_2>;<keyword_3>"
+  --location-filter "<loc_1>,<loc_2>" \
+  --title-keywords "<keyword_1>,<keyword_2>,<keyword_3>"
 ```
 
 - `would_keep = 0`：放宽 `--title-keywords`，或去掉 `--location-filter` 先看分布

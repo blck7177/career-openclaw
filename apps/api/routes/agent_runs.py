@@ -86,6 +86,7 @@ class AgentRunRequest(BaseModel):
 
 class AgentRunResponse(BaseModel):
     task_id: str
+    run_id: str
     message: str = "search_run task enqueued"
 
 
@@ -112,8 +113,16 @@ def enqueue_agent_run(
     """
     _require_operator(x_operator_token)
 
+    catalog_ctx = _catalog_ctx()
+    if task_service.count_active_tasks(catalog_ctx, "search_run") >= 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A search run is already pending or running for the catalog workspace.",
+        )
+
+    run_id = task_service.create_run(catalog_ctx, "operator_search")
     task_id = task_service.create_task(
-        _catalog_ctx(),
+        catalog_ctx,
         task_type="search_run",
         payload={
             "profile_name": body.profile_name,
@@ -122,8 +131,9 @@ def enqueue_agent_run(
             "max_queries": body.max_queries,
             "max_pages": body.max_pages,
         },
+        run_id=run_id,
     )
-    return AgentRunResponse(task_id=task_id)
+    return AgentRunResponse(task_id=task_id, run_id=run_id)
 
 
 @router.get("/agent-runs/{task_id}")

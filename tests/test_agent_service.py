@@ -209,3 +209,57 @@ def test_reflect_no_patch_file_is_noop(workspace_root: Path, tmp_path: Path):
 
     assert out["patch_applied"] is False
     assert not (workspace_root / "strategy_state.json").exists()
+
+
+# ---------------------------------------------------------------------------
+# Fix 3: provenance gate must reject runs with only log-query (search_session)
+# and no real board_sync / web_search / classify_source calls.
+# ---------------------------------------------------------------------------
+
+
+def _fake_invoke_search_session_only_no_ledger(inv) -> AgentRunResult:
+    """Simulates an agent that fires career_search_session search_session tool
+    calls (action_type='search_session') without writing any real search ledger
+    entries. Under the old gate (total_discovery_actions > 0) this would pass;
+    under Fix 3 (real_search_actions == 0 and queries_run == 0) it must raise."""
+    coverage = inv.expected_outputs[0]
+    coverage.parent.mkdir(parents=True, exist_ok=True)
+    coverage.write_text("# Coverage\nno real search executed", encoding="utf-8")
+    return AgentRunResult(
+        status="complete",
+        turns_used=1,
+        outputs_present=list(inv.expected_outputs),
+        outputs_missing=[],
+        # search_session action_type only — no board_sync/web_search/classify,
+        # and no ledger entries written (queries_run will be 0).
+        tool_calls=[
+            {"tool": "exec", "action_type": "search_session",
+             "command": "./wrappers/career_search_session log-query --query-text q1"},
+        ],
+        raw_outputs=[],
+        raw_log_path=None,
+    )
+
+
+def test_fabrication_raises_when_only_search_session_and_no_ledger(workspace_root: Path):
+    """Fix 3: the old gate used total_discovery_actions, so a run with only
+    search_session tool calls (and zero ledger writes → queries_run=0) would
+    incorrectly pass.  With Fix 3 the gate uses real_search_actions
+    (board_sync + web_search + classify), so this case now raises."""
+    with pytest.raises(SearchValidationError):
+        _run(_patches(workspace_root, _fake_invoke_search_session_only_no_ledger))
+
+
+def test_board_sync_alone_passes_provenance_gate(workspace_root: Path):
+    """A run with board_sync calls (but 0 web_search) must pass the gate —
+    board_sync is a real discovery action."""
+    fake = _fake_invoke_factory(
+        write_candidate=False,
+        tool_calls=[
+            {"tool": "exec", "action_type": "board_sync",
+             "command": "./wrappers/career_sync_board --source greenhouse --slug schonfeld"},
+        ],
+    )
+    result = _run(_patches(workspace_root, fake))
+    assert result["board_sync_calls"] == 1
+    assert result["candidates_captured"] == 0

@@ -40,12 +40,15 @@ def create_task(
     Enqueue a new task for the worker.
 
     Returns the task_id. The task starts in 'pending' status.
+    Automatically records ctx.user_id and ctx.session_id as audit fields.
     """
     return _store().create_task(
         workspace_id=ctx.workspace_id,
         task_type=task_type,
         payload=payload,
         run_id=run_id,
+        user_id=ctx.user_id,
+        session_id=ctx.session_id,
     )
 
 
@@ -88,6 +91,47 @@ def complete_task(
     Mark a task as completed (or failed if error is provided).
     """
     _store().complete_task(task_id, result=result, error=error)
+
+
+def find_active_task(
+    ctx: RequestContext,
+    task_type: str,
+    payload_matches: dict[str, Any],
+) -> dict[str, Any] | None:
+    """
+    Return an existing pending/running task that matches the given payload
+    key-value pairs, or None.
+
+    Used to deduplicate task submissions: callers check before enqueuing so
+    repeated button clicks do not spawn redundant LLM calls.
+    """
+    return _store().find_active_task(
+        workspace_id=ctx.workspace_id,
+        task_type=task_type,
+        payload_matches=payload_matches,
+    )
+
+
+def count_active_tasks(ctx: RequestContext, task_type: str) -> int:
+    """Return the number of pending/running tasks of task_type for this workspace."""
+    return _store().count_active_tasks(
+        workspace_id=ctx.workspace_id,
+        task_type=task_type,
+    )
+
+
+def create_run(ctx: RequestContext, run_type: str) -> str:
+    """Create a run record and return run_id."""
+    return _store().create_run(
+        workspace_id=ctx.workspace_id,
+        run_type=run_type,
+        user_id=ctx.user_id,
+    )
+
+
+def update_run_status(run_id: str, run_status: str) -> None:
+    """Update run status (pending → running → completed/failed)."""
+    _store().update_run_status(run_id, run_status)
 
 
 def list_tasks(

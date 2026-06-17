@@ -186,3 +186,84 @@ def test_unauthenticated_request_rejected(tenants) -> None:
     client, _store, _ta, _tb = tenants
     r = client.get("/api/tasks/task_anything")
     assert r.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# 5. Logout revokes the server-side session
+# ---------------------------------------------------------------------------
+
+def test_logout_deletes_server_session(tenants) -> None:
+    """After logout, the same sid cookie must no longer authenticate."""
+    client, _store, token_a, _tb = tenants
+
+    # Cookie is valid before logout.
+    r = client.get("/auth/me", headers={"Cookie": f"sid={token_a}"})
+    assert r.status_code == 200
+
+    # Logout with the same cookie.
+    r = client.delete("/auth/logout", headers={"Cookie": f"sid={token_a}"})
+    assert r.status_code == 204
+
+    # Same raw token must now be rejected — server-side row is gone.
+    r = client.get("/auth/me", headers={"Cookie": f"sid={token_a}"})
+    assert r.status_code == 401
+
+
+def test_logout_without_cookie_is_safe(tenants) -> None:
+    """DELETE /auth/logout with no cookie must not crash (returns 204)."""
+    client, _store, _ta, _tb = tenants
+    r = client.delete("/auth/logout")
+    assert r.status_code == 204
+
+
+# ---------------------------------------------------------------------------
+# 6. Task dedupe & concurrency limits (API layer)
+# ---------------------------------------------------------------------------
+
+def test_job_report_dedupe_returns_same_task_id(tenants) -> None:
+    """POST /api/jobs/{id}/analyze twice (force=False) returns the same task_id."""
+    client, _store, token_a, _tb = tenants
+    headers = {"Cookie": f"sid={token_a}"}
+
+    r1 = client.post("/api/jobs/job_001/analyze", headers=headers)
+    assert r1.status_code == 202
+    task_id_1 = r1.json()["task_id"]
+
+    r2 = client.post("/api/jobs/job_001/analyze", headers=headers)
+    assert r2.status_code == 202
+    task_id_2 = r2.json()["task_id"]
+
+    assert task_id_1 == task_id_2, "Duplicate submission should return the existing task_id"
+
+
+def test_job_report_force_creates_new_task(tenants) -> None:
+    """POST /api/jobs/{id}/analyze?force=true always creates a fresh task."""
+    client, _store, token_a, _tb = tenants
+    headers = {"Cookie": f"sid={token_a}"}
+
+    r1 = client.post("/api/jobs/job_002/analyze", headers=headers)
+    assert r1.status_code == 202
+    task_id_1 = r1.json()["task_id"]
+
+    r2 = client.post("/api/jobs/job_002/analyze?force=true", headers=headers)
+    assert r2.status_code == 202
+    task_id_2 = r2.json()["task_id"]
+
+    assert task_id_1 != task_id_2, "force=True must bypass dedupe and create a new task"
+
+
+def test_fit_report_dedupe_returns_same_task_id(tenants) -> None:
+    """POST /api/jobs/{id}/fit twice (force=False) returns the same task_id."""
+    client, _store, token_a, _tb = tenants
+    headers = {"Cookie": f"sid={token_a}"}
+    body = {"profile_id": "prof_xyz", "force": False}
+
+    r1 = client.post("/api/jobs/job_003/fit", json=body, headers=headers)
+    assert r1.status_code == 202
+    task_id_1 = r1.json()["task_id"]
+
+    r2 = client.post("/api/jobs/job_003/fit", json=body, headers=headers)
+    assert r2.status_code == 202
+    task_id_2 = r2.json()["task_id"]
+
+    assert task_id_1 == task_id_2

@@ -364,3 +364,136 @@ class TestWorkerRecovery:
         assert task["status"] == "failed"
         assert task["finished_at"] is not None
         assert "exceeded max attempts" in (task["error_message"] or "")
+
+
+# ---------------------------------------------------------------------------
+# Task audit fields (created_by)
+# ---------------------------------------------------------------------------
+
+class TestTaskCreatedBy:
+    def test_created_by_fields_stored(self, ctx, store, monkeypatch, data_root):
+        """created_by_user_id and created_by_session_id are written to the DB row."""
+        monkeypatch.setattr(
+            "career_intelligence.services.task_service.get_data_root",
+            lambda: data_root,
+        )
+        ctx_with_session = RequestContext(
+            workspace_id="test_ws", user_id="test_user", session_id="sess_abc123"
+        )
+        from career_intelligence.services import task_service
+        task_id = task_service.create_task(ctx_with_session, "job_report", {"job_id": "j1"})
+
+        with store._conn() as conn:
+            row = conn.execute(
+                "SELECT created_by_user_id, created_by_session_id FROM task_queue WHERE task_id = ?",
+                (task_id,),
+            ).fetchone()
+
+        assert row["created_by_user_id"] == "test_user"
+        assert row["created_by_session_id"] == "sess_abc123"
+
+    def test_created_by_null_when_no_session(self, ctx, store, monkeypatch, data_root):
+        """created_by_session_id is NULL when ctx has no session_id (e.g. worker tasks)."""
+        monkeypatch.setattr(
+            "career_intelligence.services.task_service.get_data_root",
+            lambda: data_root,
+        )
+        from career_intelligence.services import task_service
+        task_id = task_service.create_task(ctx, "job_report", {"job_id": "j2"})
+
+        with store._conn() as conn:
+            row = conn.execute(
+                "SELECT created_by_user_id, created_by_session_id FROM task_queue WHERE task_id = ?",
+                (task_id,),
+            ).fetchone()
+
+        assert row["created_by_user_id"] == "test_user"
+        assert row["created_by_session_id"] is None
+
+
+# ---------------------------------------------------------------------------
+# Task dedupe helpers (find_active_task / count_active_tasks)
+# ---------------------------------------------------------------------------
+
+class TestTaskDedupe:
+    def test_find_active_task_returns_existing(self, ctx, store, monkeypatch, data_root):
+        """find_active_task finds a pending task by payload key."""
+        monkeypatch.setattr(
+            "career_intelligence.services.task_service.get_data_root",
+            lambda: data_root,
+        )
+        from career_intelligence.services import task_service
+        task_id = task_service.create_task(ctx, "job_report", {"job_id": "job_x"})
+
+        found = task_service.find_active_task(ctx, "job_report", {"job_id": "job_x"})
+        assert found is not None
+        assert found["task_id"] == task_id
+
+    def test_find_active_task_returns_none_when_completed(self, ctx, store, monkeypatch, data_root):
+        """find_active_task returns None once the task is completed."""
+        monkeypatch.setattr(
+            "career_intelligence.services.task_service.get_data_root",
+            lambda: data_root,
+        )
+        from career_intelligence.services import task_service
+        task_id = task_service.create_task(ctx, "job_report", {"job_id": "job_done"})
+        task_service.poll_pending_tasks()
+        task_service.complete_task(task_id, result={"ok": True})
+
+        found = task_service.find_active_task(ctx, "job_report", {"job_id": "job_done"})
+        assert found is None
+
+    def test_find_active_task_multi_key(self, ctx, store, monkeypatch, data_root):
+        """find_active_task requires ALL payload_matches to be satisfied."""
+        monkeypatch.setattr(
+            "career_intelligence.services.task_service.get_data_root",
+            lambda: data_root,
+        )
+        from career_intelligence.services import task_service
+        task_service.create_task(
+            ctx, "fit_report", {"job_id": "job_a", "profile_id": "prof_1"}
+        )
+
+        # Both keys match → found.
+        found = task_service.find_active_task(
+            ctx, "fit_report", {"job_id": "job_a", "profile_id": "prof_1"}
+        )
+        assert found is not None
+
+        # Only one key matches → not found.
+        not_found = task_service.find_active_task(
+            ctx, "fit_report", {"job_id": "job_a", "profile_id": "prof_DIFFERENT"}
+        )
+        assert not_found is None
+
+    def test_find_active_task_different_workspace_not_visible(
+        self, ctx, store, monkeypatch, data_root
+    ):
+        """Tasks from another workspace are not returned."""
+        monkeypatch.setattr(
+            "career_intelligence.services.task_service.get_data_root",
+            lambda: data_root,
+        )
+        from career_intelligence.services import task_service
+        task_service.create_task(ctx, "job_report", {"job_id": "job_x"})
+
+        other_ctx = RequestContext(workspace_id="other_ws", user_id="other_user")
+        found = task_service.find_active_task(other_ctx, "job_report", {"job_id": "job_x"})
+        assert found is None
+
+    def test_count_active_tasks(self, ctx, store, monkeypatch, data_root):
+        """count_active_tasks returns the number of pending+running tasks."""
+        monkeypatch.setattr(
+            "career_intelligence.services.task_service.get_data_root",
+            lambda: data_root,
+        )
+        from career_intelligence.services import task_service
+        assert task_service.count_active_tasks(ctx, "search_run") == 0
+
+        t1 = task_service.create_task(ctx, "search_run", {"profile_name": "nyc"})
+        task_service.create_task(ctx, "search_run", {"profile_name": "nyc2"})
+        assert task_service.count_active_tasks(ctx, "search_run") == 2
+
+        task_service.poll_pending_tasks(task_types=["search_run"])
+        task_service.complete_task(t1, result={"ok": True})
+        assert task_service.count_active_tasks(ctx, "search_run") == 1

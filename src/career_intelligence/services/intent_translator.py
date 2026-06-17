@@ -597,8 +597,12 @@ def translate(
             "translator_version": translator_version,
         }
 
-    # Stamp profile_id for traceability
-    if not intent.get("profile_id") and profile.get("candidate_profile_id"):
+    # Stamp profile_id for traceability.
+    # Treat placeholder values ("unknown", "", "none", "null") as missing so that
+    # a real profile id is always stamped even when the LLM emits a placeholder.
+    _PLACEHOLDER_PROFILE_IDS = {"", "unknown", "none", "null"}
+    current_profile_id = (intent.get("profile_id") or "").strip().lower()
+    if current_profile_id in _PLACEHOLDER_PROFILE_IDS and profile.get("candidate_profile_id"):
         intent["profile_id"] = profile["candidate_profile_id"]
 
     logger.info(

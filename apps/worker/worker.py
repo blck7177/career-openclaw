@@ -170,6 +170,9 @@ def main() -> None:
     lane_label = ",".join(WORKER_TASK_TYPES) if WORKER_TASK_TYPES else "all"
     logger.info("Worker starting (data_root=%s, lane=%s)", data_root, lane_label)
     _recover_stale_tasks(store)
+    cleaned = store.cleanup_expired_browser_sessions()
+    if cleaned:
+        logger.info("Cleaned up %d expired browser session(s)", cleaned)
     logger.info("Worker ready — polling every %ds", POLL_INTERVAL_S)
 
     while True:

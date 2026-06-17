@@ -52,6 +52,13 @@ def enqueue_job_analysis(
             produce a validated web-research bundle and generate a
             research-augmented report (degrades to JD-only if research fails).
     """
+    if not force:
+        existing = task_service.find_active_task(
+            ctx, "job_report", {"job_id": job_id}
+        )
+        if existing:
+            return AnalyzeResponse(task_id=existing["task_id"])
+
     task_id = task_service.create_task(
         ctx,
         task_type="job_report",
