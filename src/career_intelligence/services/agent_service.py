@@ -354,7 +354,7 @@ def _run_reflect(
         return {"reflected": True, "patch_applied": False}
 
     try:
-        updated = apply_strategy_patch(workspace_root, session_id, patch)
+        updated = apply_strategy_patch(workspace_root, session_id, patch, repo_root=repo_root)
     except StrategyPatchError as exc:
         logger.warning("Reflect patch for %s rejected: %s", session_id, exc)
         return {"reflected": True, "patch_applied": False}

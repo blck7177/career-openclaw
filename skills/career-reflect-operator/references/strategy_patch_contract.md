@@ -26,4 +26,13 @@
 
 ## coverage_by_workstream 的 key 约束
 
-key **必须是 `configs/workstream_taxonomy.yaml` 里的合法 workstream label**（value 取 `sufficient` / `weak` / `missing`）。这条目前**没有运行时校验兜底**——靠你保证。先读 taxonomy 配置确认合法 label 再写。
+key **必须是 `configs/workstream_taxonomy.yaml` 里的合法 workstream `id`**（value 取 `sufficient` / `weak` / `missing`）。平台在 `apply_strategy_patch()` 里有运行时校验：
+
+- `id` 格式（如 `"market_risk_exposure"`）：直接接受。
+- `label` 格式（如 `"Market Risk / Exposure Monitoring"`）：自动映射到对应 `id`。
+- 既不是 `id` 也不是 `label` 的 key（如 `"Market Risk"`、`"Credit Analytics"`）：**patch 整体被拒**（`StrategyPatchError`）。
+
+**始终使用 `id` 格式**（`label` 映射是为了向后兼容，不保证长期支持）。先读 `configs/workstream_taxonomy.yaml` 确认合法 id 再写。
+
+合法 id 完整列表：
+`market_risk_exposure` / `valuation_control_ipv` / `product_control_pnl` / `structured_credit` / `risk_analytics_automation` / `model_risk_validation` / `stress_testing` / `treasury_alm`

@@ -12,7 +12,7 @@ Worker owns workflow + persistence.  Agent owns the bounded reflection.  Service
 
 ```json
 {
-  "session_id": "2026-06-14_030203",
+  "session_id": "<YYYY-MM-DD_HHMMSS>",
   "run_summary_path": ".../runs/<session_id>/run_summary.md",
   "coverage_report_path": ".../runs/<session_id>/coverage_report.md",
   "expected_output_paths": {

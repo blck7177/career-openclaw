@@ -12,6 +12,33 @@ reflect 这一步几乎没有运行时校验（平台只校验 patch 顶层字�
 - list 字段只写本轮**新增**的（平台会 union 合并，见 `strategy_patch_contract.md`）。
 - **`recommended_next_searches` 是整体替换**（见合并语义）——写出你希望下一轮看到的完整优先列表，不超过 5 条。
 
+### `key_learnings` 专项规则
+
+`key_learnings` 是跨 run 策略记忆，供下一轮 discovery agent 读取后改变决策。**写之前先问自己两个问题：**
+
+1. **"下一个 agent 读了这条，会做出和不读时不同的决策吗？"** → 否则不写。
+2. **"这条信息能被其他结构化字段（`avoid_sources` / `effective_sources` / query_patterns / `coverage_by_workstream`）承载吗？"** → 能就放到那个字段，不要重复进 `key_learnings`。
+
+**应该写的五类观察**（其他字段放不下的）：
+- Source 的**条件性行为**：在什么参数/条件下失败或成功（不只是成功/失败本身）
+- **Filter 调参洞见**：title_keywords 或 location_filter 应如何调整及原因
+- **Move 顺序 insight**：哪些 move 应先做，及适用条件
+- **Profile-source 耦合**：这个 profile 与哪类 source 搭配效果好/差，及原因
+- **Source registry 状态**：board token 是否需要更新，或发现了新 ATS board
+
+**不应该写的内容（有更合适的归属）：**
+
+| 不要写的内容 | 正确去处 |
+|---|---|
+| Source X 返回 403/404 | `avoid_sources` |
+| Source Y fetch 到真实 JD | `effective_sources` |
+| Query pattern 产出真实 URL / 只返回聚合器页 | `effective/avoid_query_patterns` |
+| Workstream coverage 不足 | `coverage_by_workstream: missing/weak` |
+| Run 产出 0 候选 / budget 耗尽 | 不写（run 执行描述） |
+| "没有足够数据得出结论" | 不写（null observation） |
+
+**格式：** 每条一句话，自包含，有具体 subject（写 board slug 或域名，不写"the board"），只写本轮新增的。
+
 ---
 
 ## reflection_report.md 质量

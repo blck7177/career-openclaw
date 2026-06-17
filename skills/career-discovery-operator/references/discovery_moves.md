@@ -2,6 +2,16 @@
 
 这些 moves 可以**自由组合、不限顺序**。根据 task spec 的 `catalog_context` 和当前 discovery 状态选择最有效的 move。
 
+## 目录
+- [Move 1: Board Sync](#move-1-board-sync)
+- [Move 2: Web Search](#move-2-web-search)
+- [Move 3: Source Classification & Board Registration](#move-3-source-classification--board-registration)
+- [Move 4: Targeted Site Search](#move-4-targeted-site-search)
+- [Move 5: Career Page Snowball](#move-5-career-page-snowball)
+- [Move 6: Query Expansion](#move-6-query-expansion)
+- [Move 7: Source Pivot](#move-7-source-pivot)
+- [Move 选择指南](#move-选择指南)
+
 ---
 
 ## Move 1: Board Sync（优先用于已知 ATS 公司）
@@ -23,8 +33,8 @@
 ./wrappers/career_sync_board \
   --source <ats_type> --slug <company_slug> \
   --session-id <session_id> --workspace-id <workspace_id> \
-  --location-filter "New York;NYC;Jersey City" \
-  --title-keywords "market risk;valuation control;risk analytics"
+  --location-filter "<loc_1>;<loc_2>" \
+  --title-keywords "<keyword_1>;<keyword_2>;<keyword_3>"
 ```
 
 - `would_keep = 0`：放宽 `--title-keywords`，或去掉 `--location-filter` 先看分布
@@ -39,7 +49,7 @@ Board sync 候选自动写入 `candidate_pool.jsonl`，不需要额外调 `caree
 `web_search` tool → 从结果中提取具体 JD URL → 对每个候选 URL 单独 `web_fetch` 确认 → `career_log_candidates`。
 
 ```
-web_search("site:greenhouse.io market risk analyst New York")
+web_search("site:greenhouse.io <role_keywords> <location>")
   → 提取 job detail URLs（不是搜索结果页本身）
   → web_fetch 每个 URL 确认真实 JD 内容
   → career_log_candidates
@@ -104,7 +114,7 @@ web_search → career_search_session log-query → web_fetch → career_log_cand
 对特定公司的 career page 做精准搜索：
 
 ```
-web_search("site:careers.goldmansachs.com market risk analyst New York 2026")
+web_search("site:careers.<company>.com <role_keywords> <location>")
 ```
 
 适用于：不在 boards 里的公司，或 board sync 结果为空时的补充。
@@ -125,7 +135,7 @@ web_search("site:careers.goldmansachs.com market risk analyst New York 2026")
 - 从 `web_fetch` 到的 JD 内容里提取 title 变体、技术词汇
 - 将这些术语用于下一组 web_search queries
 
-例：fetch 到 "IPV Analyst" JD 后 → 新 query `"Independent Price Verification analyst NYC"`
+例：fetch 到 `"<role abbreviation>"` JD 后 → 新 query `"<full role title> <location>"`
 
 ---
 

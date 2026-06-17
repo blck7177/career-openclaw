@@ -12,8 +12,8 @@ Service owns canonical database.
 
 ```json
 {
-  "session_id": "2026-06-16_145156",
-  "workspace_id": "dev_default",
+  "session_id": "<YYYY-MM-DD_HHMMSS>",
+  "workspace_id": "<workspace_id>",
   "search_request": {
     "raw_user_request": "找 market risk / valuation control 相关岗位",
     "profile_name": "market_risk_nyc",
@@ -21,16 +21,16 @@ Service owns canonical database.
   },
   "catalog_context": {
     "existing_job_count": 12,
-    "recent_companies": ["Goldman Sachs", "JPMorgan"]
+    "recent_companies": ["<company_A>", "<company_B>"]
   },
   "strategy_context": {
     "coverage_gaps": ["buy-side risk", "Ashby-board companies"],
-    "effective_sources": ["greenhouse.io/schonfeld", "lever.co/citadel"],
-    "avoid_sources": ["linkedin.com — login-required", "glassdoor.com — bot-blocked"],
-    "effective_query_patterns": ["site:greenhouse.io market risk New York"],
-    "avoid_query_patterns": ["market risk jobs NYC — returns aggregator pages only"],
-    "key_learnings": ["Schonfeld board_sync title filter too narrow; broaden to 'quant;risk;valuation'"],
-    "recommended_next_searches": ["Retry Schonfeld with broader title_keywords", "Search Ashby-based buy-side firms"]
+    "effective_sources": ["<ats_domain>/<company_slug>", "<ats_domain>/<company_slug>"],
+    "avoid_sources": ["<domain> — login-required", "<domain> — bot-blocked"],
+    "effective_query_patterns": ["site:<ats_domain> <role_keywords> <location>"],
+    "avoid_query_patterns": ["<broad_query> — returns aggregator pages only"],
+    "key_learnings": ["<company> board_sync filter too narrow; broaden to '<adjacent_keywords>'"],
+    "recommended_next_searches": ["Retry <company> board_sync with broader title_keywords", "Expand to <source_type> for <workstream> workstream"]
   },
   "source_context": {
     "company_boards_path": "configs/company_boards.yaml",

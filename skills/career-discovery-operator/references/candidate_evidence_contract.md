@@ -2,6 +2,13 @@
 
 这是本 skill 里**最不可妥协**的部分。平台用真实 tool-call 做反捏造校验，违反会导致候选被拒或整个 run 中止。
 
+## 目录
+- [入池必要条件](#入池必要条件)
+- [Accepted Evidence Paths](#accepted-evidence-paths)
+- [工具机制](#工具机制)
+- [Platform Provenance Gate](#platform-provenance-gate)
+- [Coverage Report 格式](#coverage-report-格式)
+
 ---
 
 ## 入池必要条件（全部满足才能 `career_log_candidates`）
