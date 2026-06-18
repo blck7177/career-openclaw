@@ -28,10 +28,11 @@ function fmtDate(iso: string | null) {
 }
 
 export default async function DashboardPage() {
-  const [jobs, runs] = await Promise.all([
+  const [jobs, runsRaw] = await Promise.all([
     listJobs({ limit: 500 }).catch(() => [] as Job[]),
     listRuns(10).catch(() => [] as RunMeta[]),
   ]);
+  const runs = Array.isArray(runsRaw) ? runsRaw : [];
 
   const wsCounts = buildWorkstreamCounts(jobs);
   const wsEntries = Object.entries(wsCounts).sort((a, b) => b[1] - a[1]);

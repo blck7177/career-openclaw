@@ -1,10 +1,17 @@
 import type { NextConfig } from "next";
 
+const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8000";
+
 const nextConfig: NextConfig = {
-  // Allow the app to call the local FastAPI backend during SSR in dev
-  // (no need for CORS workarounds since we use credentials: "include")
-  experimental: {
-    // Required for server components fetching from localhost
+  // Proxy /api/* and /auth/* to the FastAPI backend.
+  // Browser requests hit the same Next.js origin (no CORS), and Next.js
+  // forwards them server-side to FastAPI. SSR server components still call
+  // FastAPI directly via the full BACKEND_URL.
+  async rewrites() {
+    return [
+      { source: "/api/:path*", destination: `${BACKEND}/api/:path*` },
+      { source: "/auth/:path*", destination: `${BACKEND}/auth/:path*` },
+    ];
   },
 };
 

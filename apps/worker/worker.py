@@ -55,6 +55,14 @@ POLL_INTERVAL_S = 5
 # kills the worker cannot loop forever. Overridable via env.
 MAX_ATTEMPTS = int(os.environ.get("TASK_MAX_ATTEMPTS", "3"))
 
+# How often (seconds) the worker runs the stale-task timeout sweep in the
+# main loop. Default 30 minutes. Also runs once on startup.
+STALE_SWEEP_INTERVAL_S = int(os.environ.get("STALE_SWEEP_INTERVAL_S", str(30 * 60)))
+
+# TTL config for stale task cleanup (overridable via env).
+PENDING_TTL_HOURS = float(os.environ.get("PENDING_TTL_HOURS", "4"))
+RUNNING_TTL_HOURS = float(os.environ.get("RUNNING_TTL_HOURS", "6"))
+
 # Optional lane filter: comma-separated list of task_type values this worker
 # will claim.  Empty / unset = claim any task type (single-worker default).
 # Example: WORKER_TASK_TYPES=search_run  → agent lane
@@ -170,12 +178,40 @@ def main() -> None:
     lane_label = ",".join(WORKER_TASK_TYPES) if WORKER_TASK_TYPES else "all"
     logger.info("Worker starting (data_root=%s, lane=%s)", data_root, lane_label)
     _recover_stale_tasks(store)
+
+    # Timeout sweep on startup — clears pending tasks that accumulated while
+    # the worker was down, preventing spurious 409 on next submission.
+    stale = store.timeout_stale_tasks(
+        pending_ttl_hours=PENDING_TTL_HOURS,
+        running_ttl_hours=RUNNING_TTL_HOURS,
+    )
+    if stale["pending"] or stale["running"]:
+        logger.warning(
+            "Timed out stale tasks on startup: %d pending, %d running",
+            stale["pending"], stale["running"],
+        )
+
     cleaned = store.cleanup_expired_browser_sessions()
     if cleaned:
         logger.info("Cleaned up %d expired browser session(s)", cleaned)
     logger.info("Worker ready — polling every %ds", POLL_INTERVAL_S)
 
+    last_sweep = time.monotonic()
+
     while True:
+        # Periodic stale-task sweep.
+        if time.monotonic() - last_sweep >= STALE_SWEEP_INTERVAL_S:
+            stale = store.timeout_stale_tasks(
+                pending_ttl_hours=PENDING_TTL_HOURS,
+                running_ttl_hours=RUNNING_TTL_HOURS,
+            )
+            if stale["pending"] or stale["running"]:
+                logger.warning(
+                    "Periodic stale sweep: failed %d pending, %d running",
+                    stale["pending"], stale["running"],
+                )
+            last_sweep = time.monotonic()
+
         task = task_service.poll_pending_tasks(task_types=WORKER_TASK_TYPES)
         if task is None:
             time.sleep(POLL_INTERVAL_S)

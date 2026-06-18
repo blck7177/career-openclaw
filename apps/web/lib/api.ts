@@ -5,7 +5,12 @@
  * Base URL defaults to http://localhost:8000 (override via NEXT_PUBLIC_API_URL).
  */
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Browser: use relative path so requests go through Next.js rewrites (same-origin, no CORS).
+// SSR / server components: call FastAPI directly with the full URL.
+const BASE =
+  typeof window !== "undefined" && !process.env.NEXT_PUBLIC_API_URL
+    ? ""
+    : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000");
 
 // ---------------------------------------------------------------------------
 // Types

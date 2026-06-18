@@ -18,7 +18,7 @@ from __future__ import annotations
 import sqlite3
 import uuid
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Generator
 
@@ -753,6 +753,51 @@ class MetadataStore:
     # -------------------------------------------------------------------------
     # Session maintenance
     # -------------------------------------------------------------------------
+
+    def timeout_stale_tasks(
+        self,
+        pending_ttl_hours: float = 4.0,
+        running_ttl_hours: float = 6.0,
+    ) -> dict[str, int]:
+        """
+        Fail tasks that have been stuck too long with no worker picking them up.
+
+        pending_ttl_hours : tasks still 'pending' after this many hours → failed.
+                            Covers the case where no worker was running when a
+                            task was enqueued (e.g. worker was down).
+        running_ttl_hours : tasks still 'running' after this many hours → failed.
+                            Covers long-running agents that silently hung without
+                            raising an exception (supplements _recover_stale_tasks
+                            which only fires on worker restart).
+
+        Returns a dict {"pending": n, "running": n} with counts of tasks failed.
+        """
+        now = datetime.now(timezone.utc)
+        pending_cutoff = (now - timedelta(hours=pending_ttl_hours)).isoformat()
+        running_cutoff = (now - timedelta(hours=running_ttl_hours)).isoformat()
+        now_iso = now.isoformat()
+
+        with self._conn() as conn:
+            pending_failed = conn.execute(
+                """
+                UPDATE task_queue
+                SET status = 'failed', finished_at = ?,
+                    error_message = 'timed out: pending too long (no worker picked up)'
+                WHERE status = 'pending' AND created_at < ?
+                """,
+                (now_iso, pending_cutoff),
+            ).rowcount
+            running_failed = conn.execute(
+                """
+                UPDATE task_queue
+                SET status = 'failed', finished_at = ?,
+                    error_message = 'timed out: running too long (worker likely hung)'
+                WHERE status = 'running' AND started_at < ?
+                """,
+                (now_iso, running_cutoff),
+            ).rowcount
+
+        return {"pending": pending_failed, "running": running_failed}
 
     def cleanup_expired_browser_sessions(self) -> int:
         """Delete browser_sessions rows whose expires_at is in the past.
