@@ -46,6 +46,10 @@ _VALID_MODES = frozenset(
 
 _VALID_SEARCH_DEPTHS = frozenset({"fast", "balanced", "deep"})
 
+_VALID_SEARCH_SOURCES = frozenset(
+    {"instruction_only", "profile_only", "instruction_plus_profile"}
+)
+
 # Budget per attempt for each search_depth level.
 # Each attempt uses the same per-attempt budget; the ObjectiveController splits
 # the total across attempts internally (attempt 1 gets ~60%).
@@ -133,6 +137,16 @@ class DiscoveryRunRequest(BaseModel):
         description=(
             "Free-text direction appended to the compiled instruction string. "
             "Useful for nuances not captured by structured params."
+        ),
+    )
+    search_source: str = Field(
+        "instruction_plus_profile",
+        description=(
+            "instruction_only | profile_only | instruction_plus_profile. "
+            "Controls which inputs the Intent Translator may use for hard constraints. "
+            "instruction_only: use only the submitted instruction/params, ignore profile. "
+            "profile_only: use only the candidate profile, treat instruction as a style hint. "
+            "instruction_plus_profile: instruction sets hard constraints, profile enriches lanes."
         ),
     )
 
@@ -265,6 +279,15 @@ def enqueue_discovery_run(
             ),
         )
 
+    if body.search_source not in _VALID_SEARCH_SOURCES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Invalid search_source {body.search_source!r}. "
+                f"Must be one of: {', '.join(sorted(_VALID_SEARCH_SOURCES))}"
+            ),
+        )
+
     # Verify profile exists (fail fast rather than enqueue a doomed task).
     profile = get_profile(ctx, body.profile_id)
     if profile is None:
@@ -307,6 +330,7 @@ def enqueue_discovery_run(
             # directly without re-parsing the compiled instruction string.
             "search_params": body.search_params.model_dump(),
             "search_depth": body.search_depth,
+            "search_source": body.search_source,
         },
         run_id=run_id,
     )

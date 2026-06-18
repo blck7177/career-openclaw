@@ -19,6 +19,7 @@ Public API
         workspace_root=Path(".../data/workspaces/dev_default"),
         repo_root=Path(".../career-openclaw"),
         requested_mode="auto",
+        search_source="instruction_plus_profile",  # "instruction_only" | "profile_only" | "instruction_plus_profile"
         session_root=Path(".../runs/2026-06-16_..."),  # optional; enables artifact persist
     )
 
@@ -58,18 +59,18 @@ _TRANSLATOR_VERSION = "1.0.0"
 
 # Prompt version — bump when the 4-block prompt changes semantically so that
 # cached intents are not silently reused with an outdated translator.
-_PROMPT_VERSION = "1.0.0"
+_PROMPT_VERSION = "2.0.0"
 
 
 # ---------------------------------------------------------------------------
-# Prompt (4-block structure from proj_plan_0616_prompt.md)
+# Prompt (4-block structure)
 # ---------------------------------------------------------------------------
 
 _SYSTEM_PROMPT = """\
 You are the Career Discovery Intent Translator.
 
 Your task is to compile the provided candidate_profile, user_instruction, \
-catalog_context, strategy_context, workstream_taxonomy, and product_defaults \
+catalog_context, strategy_context, and workstream_taxonomy \
 into one structured DiscoveryIntent object.
 
 You do not search the web.
@@ -77,44 +78,73 @@ You do not invent job postings, companies, URLs, or live market facts.
 You do not make final career recommendations.
 You only produce an executable search intent contract for a downstream job discovery agent.
 
-Decision priority:
-1. Explicit user hard constraints override all other inputs.
-2. Explicit user soft preferences guide ranking and budget allocation.
-3. Candidate profile evidence may be used to infer adjacent search lanes, \
-but only when supported by concrete profile signals.
-4. Strategy context may improve priority and efficiency, but must not override user constraints.
-5. Product defaults only fill missing values.
+--- NO SILENT DEFAULTS ---
+Never fabricate or assume location, seniority, years cap, remote policy, or company type \
+when they are not present in the allowed input sources (see search_source below).
+If a constraint is absent from the allowed sources, omit it entirely or set it to null. \
+Do NOT use any product defaults. Do NOT invent "New York" or any city. \
+Do NOT invent "allow_if_finance_relevant" or any remote policy. \
+Missing information belongs in translator_notes.missing_information, not in constraints.
 
-Mode selection:
-- directed_discovery: use when the user gives concrete target role types, industries, \
-company types, location, seniority, experience range, or exclusions.
-- profile_based_exploration: use when the user is unsure, asks what roles may fit them, \
-or provides no concrete search target.
-- gap_fill_discovery: use when the user gives no strong direction and strategy_context has \
-meaningful coverage gaps or recommended next searches.
+--- SEARCH SOURCE RULES ---
+The search_source field tells you which inputs you are allowed to read for constraints.
+
+instruction_only:
+  Read ONLY user_instruction and explicit search parameters (location, seniority, \
+remote policy, exclusions, years cap, workstreams).
+  Ignore candidate_profile entirely for hard constraints, location, seniority, \
+and target roles. You may still use profile background to choose relevant query seeds, \
+but do not surface profile location, target_roles, or seniority as constraints.
+
+profile_only:
+  Read ONLY candidate_profile for search lanes, role targeting, and any constraints \
+derivable from the profile.
+  Ignore user_instruction for hard constraints (treat it as an optional hint for \
+query style only).
+
+instruction_plus_profile:
+  user_instruction sets hard constraints. profile context enriches lane hypotheses \
+and query seeds.
+  Hard rule: any constraint stated in user_instruction overrides profile data. \
+If user_instruction says "remote only", the remote_policy must be "remote_only" \
+even if the profile lists a city.
+
+--- DECISION PRIORITY ---
+1. Explicit user constraints from user_instruction (if search_source allows).
+2. Profile-derived constraints (only if search_source is profile_only or \
+instruction_plus_profile and the user did not contradict them).
+3. Strategy context may improve source selection and query priority, \
+but must not introduce location, seniority, or company-type constraints.
+4. Anything absent from allowed sources → omit or record in missing_information.
+
+--- MODE SELECTION ---
+- directed_discovery: user gives concrete target role types, industries, company types, \
+location, seniority, experience range, or exclusions.
+- profile_based_exploration: user is unsure, asks what roles may fit, \
+or search_source is profile_only.
+- gap_fill_discovery: no strong user direction and strategy_context has meaningful \
+coverage gaps or recommended next searches.
 - If requested_mode is not "auto", respect it unless impossible.
 
-Lane generation:
-- For directed_discovery, create one main lane and optional expansion lanes only if they \
-preserve the user's constraints.
-- For profile_based_exploration, create 3 to 5 lanes.
-- For gap_fill_discovery, create lanes around weak or missing coverage areas.
+--- LANE GENERATION ---
+- For directed_discovery: one main lane, optional expansion lanes only if they \
+preserve user constraints.
+- For profile_based_exploration: 3 to 5 lanes derived from profile evidence.
+- For gap_fill_discovery: lanes around weak or missing coverage areas.
 - Every lane must include profile evidence, user signal, or strategy signal.
 - Do not create lanes only because they sound popular.
-- Do not map current job title only to similar job titles; translate work evidence \
-into adjacent workstreams.
+- Translate work evidence into adjacent workstreams; do not just mirror current title.
 
-Constraint handling:
+--- CONSTRAINT HANDLING ---
 - Preserve explicit max years of experience, excluded role types, location limits, \
-and company/industry exclusions.
+and company/industry exclusions from allowed sources.
 - Copy global hard constraints into lane-level inherited_hard_constraints.
 - Distinguish hard_constraints, soft_preferences, and negative_preferences.
-- If a constraint is ambiguous, record it in assumptions instead of silently strengthening it.
+- If a constraint is ambiguous, record it in assumptions.
 
-Privacy:
+--- PRIVACY ---
 - Do not include personal names, private employer-sensitive details, compensation, \
-visa status, or private profile text in query_seeds unless the user explicitly provided \
-it as a search requirement.
+visa status, or private profile text in query_seeds.
 - Query seeds must be general job-market search phrases.
 
 Output:
@@ -200,12 +230,18 @@ def build_input_envelope(
     strategy_context: dict[str, Any],
     workstream_taxonomy: list[dict[str, Any]],
     requested_mode: str,
+    search_source: str = "instruction_plus_profile",
 ) -> dict[str, Any]:
     """
     Assemble all translator inputs into a structured envelope.
 
     This object is persisted as translator_input.json so that any downstream
     debug session can exactly reproduce the LLM call inputs.
+
+    search_source controls which inputs the LLM is allowed to use for constraints:
+      "instruction_only"       — user_instruction only; profile ignored for constraints
+      "profile_only"           — profile only; user_instruction treated as style hint
+      "instruction_plus_profile" — instruction sets hard constraints, profile enriches lanes
     """
     return {
         "profile": profile,
@@ -214,12 +250,7 @@ def build_input_envelope(
         "strategy_context": strategy_context,
         "workstream_taxonomy": workstream_taxonomy,
         "requested_mode": requested_mode,
-        "product_defaults": {
-            "default_locations": ["New York", "Jersey City"],
-            "default_remote_policy": "allow_if_finance_relevant",
-            "default_max_queries_per_lane": 10,
-            "default_lane_budget_share": None,
-        },
+        "search_source": search_source,
     }
 
 
@@ -231,7 +262,7 @@ def _build_user_message(envelope: dict[str, Any]) -> str:
     strategy_context = envelope.get("strategy_context", {})
     taxonomy = envelope.get("workstream_taxonomy", [])
     requested_mode = envelope.get("requested_mode", "auto")
-    product_defaults = envelope.get("product_defaults", {})
+    search_source = envelope.get("search_source", "instruction_plus_profile")
 
     taxonomy_text = "\n".join(
         f"  - {ws['id']}: {ws['label']}"
@@ -244,6 +275,9 @@ def _build_user_message(envelope: dict[str, Any]) -> str:
     recommended_searches = strategy_context.get("recommended_next_searches", [])
 
     return f"""\
+## search_source
+{search_source}
+
 ## requested_mode
 {requested_mode}
 
@@ -251,7 +285,7 @@ def _build_user_message(envelope: dict[str, Any]) -> str:
 {_format_profile_for_prompt(profile)}
 
 ## user_instruction
-{user_instruction or "(none — infer from profile)"}
+{user_instruction or "(none)"}
 
 ## catalog_context
 existing_job_count: {catalog_context.get('existing_job_count', 0)}
@@ -266,10 +300,6 @@ recommended_next_searches:
 
 ## workstream_taxonomy
 {taxonomy_text}
-
-## product_defaults
-default_locations: {', '.join(product_defaults.get('default_locations', []))}
-default_remote_policy: {product_defaults.get('default_remote_policy', 'unspecified')}
 
 ## output_instructions
 Return only the DiscoveryIntent JSON object. Match this schema exactly:
@@ -491,13 +521,14 @@ def translate(
     repo_root: Path,
     requested_mode: str = "auto",
     session_root: Path | None = None,
+    search_source: str = "instruction_plus_profile",
 ) -> dict[str, Any]:
     """
     Translate a candidate profile + user instruction into a validated DiscoveryIntent.
 
     Steps:
       1. build_input_envelope  — assemble all inputs
-      2. call_llm_structured_output — LLM call with 4-block system prompt
+      2. call_llm_structured_output — LLM call with system prompt
       3. _extract_json          — parse raw response
       4. validate_schema        — check against discovery_intent.schema.json
       5. repair_once_if_invalid — one retry if schema validation fails
@@ -516,6 +547,8 @@ def translate(
         requested_mode:    "auto" | "directed_discovery" | "profile_based_exploration"
                            | "gap_fill_discovery". "auto" lets the LLM decide.
         session_root:      If provided, artifacts are persisted to this directory.
+        search_source:     "instruction_only" | "profile_only" | "instruction_plus_profile".
+                           Controls which inputs the LLM may use for hard constraints.
 
     Returns:
         Validated DiscoveryIntent dict.
@@ -538,6 +571,7 @@ def translate(
         strategy_context=strategy_context,
         workstream_taxonomy=taxonomy,
         requested_mode=requested_mode,
+        search_source=search_source,
     )
 
     # 2. LLM client

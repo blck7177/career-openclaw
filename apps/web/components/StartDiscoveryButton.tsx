@@ -10,11 +10,12 @@ import {
   type CandidateProfile,
   type DiscoveryRunResult,
   type SearchMode,
+  type SearchSource,
   type SearchDepth,
   type SearchParams,
 } from "@/lib/api";
 import Link from "next/link";
-import { Loader2, Search, ChevronLeft, Target, Sliders, Compass } from "lucide-react";
+import { Loader2, Search, ChevronLeft, Target, Sliders, Compass, BookUser } from "lucide-react";
 
 interface StartDiscoveryButtonProps {
   profiles: CandidateProfile[];
@@ -29,11 +30,9 @@ type Phase =
   | "done"
   | "error";
 
-type SearchModeOption = "profile_based_exploration" | "directed_discovery" | "gap_fill_discovery";
-
 interface SearchBuilderState {
   profileId: string;
-  searchMode: SearchModeOption;
+  searchSource: SearchSource;
   location: string;
   remotePolicyValue: string;
   seniority: string;
@@ -76,29 +75,29 @@ function ObjectiveStatusBadge({ status }: { status?: string }) {
   );
 }
 
-const MODE_OPTIONS: Array<{
-  id: SearchModeOption;
+const SOURCE_OPTIONS: Array<{
+  id: SearchSource;
   icon: React.ReactNode;
   title: string;
   subtitle: string;
 }> = [
   {
-    id: "profile_based_exploration",
+    id: "instruction_plus_profile",
     icon: <Compass size={18} />,
-    title: "Search from my profile",
-    subtitle: "System infers search lanes from your background",
+    title: "Criteria + profile",
+    subtitle: "Your inputs lead, profile enriches lanes and query seeds",
   },
   {
-    id: "directed_discovery",
+    id: "instruction_only",
     icon: <Sliders size={18} />,
-    title: "Search by criteria",
-    subtitle: "You specify role, location, seniority, and more",
+    title: "Criteria only",
+    subtitle: "Only your inputs are used — profile is ignored",
   },
   {
-    id: "gap_fill_discovery",
-    icon: <Target size={18} />,
-    title: "Fill database gaps",
-    subtitle: "Adds coverage in workstreams not yet catalogued",
+    id: "profile_only",
+    icon: <BookUser size={18} />,
+    title: "Profile only",
+    subtitle: "System explores based on your background, no instruction needed",
   },
 ];
 
@@ -117,7 +116,7 @@ export default function StartDiscoveryButton({ profiles }: StartDiscoveryButtonP
   const [phase, setPhase] = useState<Phase>("idle");
   const [state, setState] = useState<SearchBuilderState>({
     profileId: profiles[0]?.candidate_profile_id ?? "",
-    searchMode: "profile_based_exploration",
+    searchSource: "instruction_plus_profile",
     location: "",
     remotePolicyValue: "flexible",
     seniority: "",
@@ -166,10 +165,17 @@ export default function StartDiscoveryButton({ profiles }: StartDiscoveryButtonP
 
     const target = parseInt(state.targetNewJobs, 10);
 
+    // Derive search_mode from search_source for backward-compat with the backend mode field.
+    const derivedSearchMode: SearchMode =
+      state.searchSource === "profile_only"
+        ? "profile_based_exploration"
+        : "directed_discovery";
+
     try {
       const res = await enqueueDiscoveryRun({
         profile_id: state.profileId,
-        search_mode: state.searchMode as SearchMode,
+        search_source: state.searchSource,
+        search_mode: derivedSearchMode,
         search_params: searchParams,
         target_new_jobs: isNaN(target) ? 10 : target,
         search_depth: state.searchDepth,
@@ -240,11 +246,14 @@ export default function StartDiscoveryButton({ profiles }: StartDiscoveryButtonP
     );
   }
 
-  // --- mode selection ---
+  // --- source selection ---
   if (phase === "mode-select") {
     return (
       <div className="border rounded-lg p-4 space-y-3 bg-muted/30 max-w-lg">
-        <p className="text-sm font-medium">Choose search mode</p>
+        <p className="text-sm font-medium">Choose search source</p>
+        <p className="text-xs text-muted-foreground">
+          Select what the system is allowed to use as search input.
+        </p>
         {profiles.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No profiles yet.{" "}
@@ -272,22 +281,22 @@ export default function StartDiscoveryButton({ profiles }: StartDiscoveryButtonP
             </div>
 
             <div className="space-y-2 pt-1">
-              {MODE_OPTIONS.map((m) => (
+              {SOURCE_OPTIONS.map((s) => (
                 <button
-                  key={m.id}
+                  key={s.id}
                   type="button"
                   onClick={() => {
-                    set("searchMode", m.id);
+                    set("searchSource", s.id);
                     setPhase("params-form");
                   }}
                   className={`w-full flex items-start gap-3 text-left rounded-lg border px-3 py-2.5 text-sm transition-colors hover:bg-accent hover:border-primary/40 ${
-                    state.searchMode === m.id ? "border-primary/60 bg-accent" : "border-input"
+                    state.searchSource === s.id ? "border-primary/60 bg-accent" : "border-input"
                   }`}
                 >
-                  <span className="mt-0.5 shrink-0 text-primary">{m.icon}</span>
+                  <span className="mt-0.5 shrink-0 text-primary">{s.icon}</span>
                   <span>
-                    <span className="font-medium block">{m.title}</span>
-                    <span className="text-xs text-muted-foreground">{m.subtitle}</span>
+                    <span className="font-medium block">{s.title}</span>
+                    <span className="text-xs text-muted-foreground">{s.subtitle}</span>
                   </span>
                 </button>
               ))}
@@ -304,8 +313,10 @@ export default function StartDiscoveryButton({ profiles }: StartDiscoveryButtonP
 
   // --- params form ---
   if (phase === "params-form") {
-    const isDirected = state.searchMode === "directed_discovery";
-    const modeLabel = MODE_OPTIONS.find((m) => m.id === state.searchMode)?.title ?? "Search";
+    // Show structured filter fields for any source mode that accepts instruction inputs.
+    // profile_only uses profile data only, so filters are not applicable.
+    const showFilters = state.searchSource !== "profile_only";
+    const sourceLabel = SOURCE_OPTIONS.find((s) => s.id === state.searchSource)?.title ?? "Search";
 
     return (
       <form onSubmit={handleSubmit} className="border rounded-lg p-4 space-y-3 bg-muted/30 max-w-lg">
@@ -317,10 +328,10 @@ export default function StartDiscoveryButton({ profiles }: StartDiscoveryButtonP
           >
             <ChevronLeft size={15} />
           </button>
-          <p className="text-sm font-medium">{modeLabel}</p>
+          <p className="text-sm font-medium">{sourceLabel}</p>
         </div>
 
-        {isDirected && (
+        {showFilters && (
           <>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
@@ -464,9 +475,9 @@ export default function StartDiscoveryButton({ profiles }: StartDiscoveryButtonP
               set("additionalInstruction", e.target.value)
             }
             placeholder={
-              isDirected
-                ? "e.g. Prefer direct company postings and mid-size firms."
-                : "e.g. Focus on buy-side risk analytics roles."
+              state.searchSource === "profile_only"
+                ? "e.g. Prioritise buy-side over sell-side."
+                : "e.g. Prefer direct company postings and mid-size firms."
             }
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 resize-none min-h-[60px]"
           />

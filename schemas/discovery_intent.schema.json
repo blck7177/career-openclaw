@@ -170,7 +170,7 @@
       "type": "object",
       "description": "Audit fields written by the translator to explain non-obvious decisions.",
       "additionalProperties": false,
-      "required": ["assumptions", "missing_information", "translator_version"],
+      "required": ["assumptions", "missing_information"],
       "properties": {
         "assumptions": {
           "type": "array",

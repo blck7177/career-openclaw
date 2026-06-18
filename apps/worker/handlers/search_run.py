@@ -83,6 +83,7 @@ def _handle_new_path(
     profile_id: str = payload["profile_id"]
     user_instruction: str = payload.get("user_instruction", "")
     requested_mode: str = payload.get("requested_mode", "auto")
+    search_source: str = payload.get("search_source", "instruction_plus_profile")
     target_new_jobs: int = int(payload.get("target_new_jobs", 10))
     total_queries: int = int(payload.get("max_queries", 30))
     total_pages: int = int(payload.get("max_pages", 40))
@@ -103,8 +104,8 @@ def _handle_new_path(
         raise ValueError(f"Candidate profile not found: {profile_id}")
 
     logger.info(
-        "search_run task %s (new path): profile=%s instruction=%.80s mode=%s target=%d",
-        task_id, profile_id, user_instruction, requested_mode, target_new_jobs,
+        "search_run task %s (new path): profile=%s instruction=%.80s mode=%s source=%s target=%d",
+        task_id, profile_id, user_instruction, requested_mode, search_source, target_new_jobs,
     )
 
     # 2. Build catalog and strategy context.
@@ -121,6 +122,7 @@ def _handle_new_path(
             workspace_root=workspace_root,
             repo_root=repo_root,
             requested_mode=requested_mode,
+            search_source=search_source,
             session_root=None,
         )
     except IntentTranslatorError as exc:
@@ -215,6 +217,7 @@ def _handle_new_path(
                 strategy_context=strategy_context,
                 workstream_taxonomy=taxonomy,
                 requested_mode=requested_mode,
+                search_source=search_source,
             )
             persist_artifacts(s_root, envelope, intent)
         except Exception as exc:  # noqa: BLE001

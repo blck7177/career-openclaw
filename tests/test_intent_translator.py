@@ -109,6 +109,7 @@ def _make_translate_call(
     profile: dict[str, Any] | None = None,
     user_instruction: str = "",
     requested_mode: str = "auto",
+    search_source: str = "instruction_plus_profile",
     tmp_path: Path | None = None,
 ) -> dict[str, Any]:
     """
@@ -142,6 +143,7 @@ def _make_translate_call(
             workspace_root=workspace_root,
             repo_root=repo_root,
             requested_mode=requested_mode,
+            search_source=search_source,
             session_root=tmp_path,
         )
 
@@ -739,3 +741,200 @@ class TestProfileIdStamp:
         stamp only fills in missing/placeholder values)."""
         result = self._call_with_profile_id("prof_other_123")
         assert result["profile_id"] == "prof_other_123"
+
+
+# ---------------------------------------------------------------------------
+# P0: Verify product_defaults are gone from envelope
+# ---------------------------------------------------------------------------
+
+
+class TestNoProductDefaults:
+    """Verify that build_input_envelope no longer injects hardcoded location/remote defaults."""
+
+    def test_envelope_has_no_product_defaults_key(self) -> None:
+        from career_intelligence.services.intent_translator import build_input_envelope
+        envelope = build_input_envelope(
+            profile=_base_profile(),
+            user_instruction="",
+            catalog_context={},
+            strategy_context={},
+            workstream_taxonomy=[],
+            requested_mode="auto",
+        )
+        assert "product_defaults" not in envelope
+
+    def test_envelope_has_no_default_locations(self) -> None:
+        from career_intelligence.services.intent_translator import build_input_envelope
+        envelope = build_input_envelope(
+            profile=_base_profile(),
+            user_instruction="",
+            catalog_context={},
+            strategy_context={},
+            workstream_taxonomy=[],
+            requested_mode="auto",
+        )
+        # No "New York" or "Jersey City" should be present anywhere in the envelope
+        envelope_str = json.dumps(envelope)
+        assert "New York" not in envelope_str
+        assert "Jersey City" not in envelope_str
+        assert "allow_if_finance_relevant" not in envelope_str
+
+    def test_user_message_has_no_product_defaults_block(self) -> None:
+        from career_intelligence.services.intent_translator import (
+            build_input_envelope,
+            _build_user_message,
+        )
+        envelope = build_input_envelope(
+            profile=_base_profile(),
+            user_instruction="",
+            catalog_context={},
+            strategy_context={},
+            workstream_taxonomy=[],
+            requested_mode="auto",
+        )
+        msg = _build_user_message(envelope)
+        # The "## product_defaults" section must be gone entirely.
+        assert "## product_defaults" not in msg
+        # "New York" and "Jersey City" must not appear outside the JSON schema block.
+        # The schema is appended after "## output_instructions", so split there.
+        msg_before_schema = msg.split("## output_instructions")[0]
+        assert "New York" not in msg_before_schema
+        assert "Jersey City" not in msg_before_schema
+        # "default_remote_policy" key must be gone (the value may still appear in the schema enum).
+        assert "default_remote_policy" not in msg
+
+
+# ---------------------------------------------------------------------------
+# P1: search_source parameter threading and envelope content
+# ---------------------------------------------------------------------------
+
+
+class TestSearchSourceInEnvelope:
+    """Verify search_source is correctly stored in the envelope and rendered in the user message."""
+
+    def _get_envelope_and_message(self, search_source: str) -> tuple[dict, str]:
+        from career_intelligence.services.intent_translator import (
+            build_input_envelope,
+            _build_user_message,
+        )
+        envelope = build_input_envelope(
+            profile=_base_profile(),
+            user_instruction="test instruction",
+            catalog_context={},
+            strategy_context={},
+            workstream_taxonomy=[],
+            requested_mode="auto",
+            search_source=search_source,
+        )
+        return envelope, _build_user_message(envelope)
+
+    def test_instruction_only_in_envelope(self) -> None:
+        envelope, msg = self._get_envelope_and_message("instruction_only")
+        assert envelope["search_source"] == "instruction_only"
+        assert "instruction_only" in msg
+
+    def test_profile_only_in_envelope(self) -> None:
+        envelope, msg = self._get_envelope_and_message("profile_only")
+        assert envelope["search_source"] == "profile_only"
+        assert "profile_only" in msg
+
+    def test_instruction_plus_profile_in_envelope(self) -> None:
+        envelope, msg = self._get_envelope_and_message("instruction_plus_profile")
+        assert envelope["search_source"] == "instruction_plus_profile"
+        assert "instruction_plus_profile" in msg
+
+    def test_default_search_source_is_instruction_plus_profile(self) -> None:
+        from career_intelligence.services.intent_translator import build_input_envelope
+        envelope = build_input_envelope(
+            profile=_base_profile(),
+            user_instruction="",
+            catalog_context={},
+            strategy_context={},
+            workstream_taxonomy=[],
+            requested_mode="auto",
+        )
+        assert envelope["search_source"] == "instruction_plus_profile"
+
+
+class TestSearchSourceBehavior:
+    """End-to-end tests verifying that search_source controls constraint handling.
+
+    These tests mock the LLM to return correct behavior for each source mode,
+    then verify the output is propagated correctly through post-processing.
+    The translate() signature now accepts search_source and passes it through.
+    """
+
+    def test_instruction_only_preserves_remote_constraint_from_instruction(self, tmp_path: Path) -> None:
+        """instruction_only: user says 'remote only' → remote_policy = remote_only in result."""
+        llm_response = _base_intent(intent_kind="directed_discovery", num_lanes=1)
+        llm_response["raw_user_instruction"] = "remote only"
+        llm_response["global_constraints"]["hard_constraints"] = ["remote_policy: remote_only"]
+        llm_response["global_constraints"]["location_constraints"] = {
+            "preferred_locations": [],
+            "remote_policy": "remote_only",
+        }
+
+        result = _make_translate_call(
+            llm_response,
+            user_instruction="remote only",
+            search_source="instruction_only",
+            tmp_path=tmp_path,
+        )
+
+        loc = result["global_constraints"].get("location_constraints", {})
+        assert loc.get("remote_policy") == "remote_only"
+        hard = result["global_constraints"]["hard_constraints"]
+        assert any("remote" in c.lower() for c in hard)
+
+    def test_profile_only_produces_exploration_intent(self, tmp_path: Path) -> None:
+        """profile_only: system builds lanes from profile; no instruction-driven hard constraints."""
+        llm_response = _base_intent(intent_kind="profile_based_exploration", num_lanes=3)
+        llm_response["raw_user_instruction"] = ""
+        for lane in llm_response["search_lanes"]:
+            lane["evidence_from_profile"] = ["VaR experience", "stress testing"]
+            lane["user_signal"] = ""
+
+        profile = _base_profile(
+            target_workstreams=["market_risk_exposure", "valuation_control_ipv"],
+        )
+
+        result = _make_translate_call(
+            llm_response,
+            profile=profile,
+            user_instruction="",
+            search_source="profile_only",
+            tmp_path=tmp_path,
+        )
+
+        assert result["intent_kind"] == "profile_based_exploration"
+        assert len(result["search_lanes"]) >= 3
+        for lane in result["search_lanes"]:
+            assert len(lane.get("evidence_from_profile", [])) > 0
+
+    def test_instruction_plus_profile_instruction_wins_on_remote(self, tmp_path: Path) -> None:
+        """instruction_plus_profile: user says 'remote only'; profile has NYC → remote wins."""
+        llm_response = _base_intent(intent_kind="directed_discovery", num_lanes=1)
+        llm_response["raw_user_instruction"] = "remote only"
+        llm_response["global_constraints"]["hard_constraints"] = ["remote_policy: remote_only"]
+        llm_response["global_constraints"]["location_constraints"] = {
+            "preferred_locations": [],
+            "remote_policy": "remote_only",
+        }
+        llm_response["search_lanes"][0]["evidence_from_profile"] = [
+            "VaR experience", "stress testing"
+        ]
+
+        profile = _base_profile(**{"constraints": "New York preferred"})
+
+        result = _make_translate_call(
+            llm_response,
+            profile=profile,
+            user_instruction="remote only",
+            search_source="instruction_plus_profile",
+            tmp_path=tmp_path,
+        )
+
+        loc = result["global_constraints"].get("location_constraints", {})
+        assert loc.get("remote_policy") == "remote_only", (
+            "Instruction 'remote only' must override profile location in instruction_plus_profile mode"
+        )

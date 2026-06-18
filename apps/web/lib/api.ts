@@ -415,6 +415,7 @@ export async function getAgentRun(
 
 export type SearchMode = "auto" | "directed_discovery" | "profile_based_exploration" | "gap_fill_discovery";
 export type SearchDepth = "fast" | "balanced" | "deep";
+export type SearchSource = "instruction_only" | "profile_only" | "instruction_plus_profile";
 
 export interface SearchParams {
   location?: string[];
@@ -430,6 +431,7 @@ export interface DiscoveryRunRequest {
   profile_id: string;
   // v2 structured fields
   search_mode?: SearchMode;
+  search_source?: SearchSource;
   search_params?: SearchParams;
   target_new_jobs?: number;
   search_depth?: SearchDepth;
