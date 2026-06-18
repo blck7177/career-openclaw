@@ -4,6 +4,7 @@ Profile routes — Sprint 4-lite.
 POST /api/profiles              — create a manual candidate profile
 GET  /api/profiles              — list profiles for the workspace
 GET  /api/profiles/{profile_id} — profile detail
+PUT  /api/profiles/{profile_id} — update an existing profile (in-place edit)
 """
 
 from __future__ import annotations
@@ -53,3 +54,27 @@ def get_profile(profile_id: str, ctx: CtxDep) -> dict[str, Any]:
             detail=f"Profile not found: {profile_id}",
         )
     return profile
+
+
+@router.put("/{profile_id}")
+def update_profile(profile_id: str, body: dict[str, Any], ctx: CtxDep) -> dict[str, Any]:
+    """
+    Update an existing candidate profile.
+
+    Supply only the fields you want to change — they are merged onto the
+    persisted profile.  candidate_profile_id, workspace_id, and created_at
+    are always preserved.  profile_version is refreshed, which invalidates
+    any cached Fit Reports generated against the old profile data.
+
+    Returns the full updated profile dict.
+    """
+    try:
+        return profile_service.update_profile(ctx, profile_id, body)
+    except ValueError as exc:
+        detail = str(exc)
+        status_code = (
+            status.HTTP_404_NOT_FOUND
+            if "not found" in detail.lower()
+            else status.HTTP_422_UNPROCESSABLE_ENTITY
+        )
+        raise HTTPException(status_code=status_code, detail=detail) from exc

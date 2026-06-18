@@ -2,6 +2,7 @@
 Fit report routes — Sprint 4-lite.
 
 POST /api/jobs/{job_id}/fit            — enqueue async Fit Report generation
+GET  /api/fit-reports                  — list Fit Report summaries (filter by profile_id)
 GET  /api/fit-reports/{fit_report_id}  — fetch completed Fit Report artifact
 GET  /api/jobs/{job_id}/fit-reports    — list Fit Reports for a job
 """
@@ -12,7 +13,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 
 from apps.api.deps import CtxDep
@@ -68,6 +69,53 @@ def enqueue_fit_report(
         payload={"job_id": job_id, "profile_id": body.profile_id, "force": body.force},
     )
     return FitEnqueueResponse(task_id=task_id)
+
+
+# ---------------------------------------------------------------------------
+# GET /api/fit-reports  — list summaries (optionally filtered by profile_id)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/fit-reports")
+def list_fit_reports_by_profile(
+    ctx: CtxDep,
+    profile_id: str | None = Query(default=None, description="Filter by candidate_profile_id"),
+) -> list[dict[str, Any]]:
+    """
+    List Fit Report summaries for the current workspace.
+
+    Optionally filter by ?profile_id= to get all fit reports generated
+    against a specific candidate profile (across all jobs).
+
+    Returns summary rows only — use GET /api/fit-reports/{id} for full content.
+    Each row includes: fit_report_id, job_id, candidate_profile_id,
+    job_report_id, created_at, overall_match_score.
+    """
+    data_root = get_data_root()
+    store = MetadataStore.from_data_root(data_root)
+    store.init_schema()
+
+    rows = store.list_fit_reports(
+        workspace_id=ctx.workspace_id,
+        candidate_profile_id=profile_id,
+    )
+
+    result = []
+    for row in rows:
+        entry: dict[str, Any] = {
+            "fit_report_id": row["fit_report_id"],
+            "job_id": row.get("job_id"),
+            "candidate_profile_id": row.get("candidate_profile_id"),
+            "job_report_id": row.get("job_report_id"),
+            "created_at": row["created_at"],
+            "overall_match_score": None,
+        }
+        structured = _read_json(row.get("structured_path"))
+        if isinstance(structured, dict):
+            entry["overall_match_score"] = structured.get("overall_match_score")
+            entry["recommended_next_action"] = structured.get("recommended_next_action")
+        result.append(entry)
+    return result
 
 
 # ---------------------------------------------------------------------------

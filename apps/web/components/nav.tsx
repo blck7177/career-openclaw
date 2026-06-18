@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Briefcase, LayoutDashboard, PlayCircle, UserCircle } from "lucide-react";
+import { Briefcase, Search, UserCircle, Zap } from "lucide-react";
 
 const links = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/jobs", label: "Jobs", icon: Briefcase },
-  { href: "/runs", label: "Runs", icon: PlayCircle },
-  { href: "/profile", label: "Profile", icon: UserCircle },
+  { href: "/", label: "Command Center", icon: Zap, exact: true },
+  { href: "/roles", label: "Role Inbox", icon: Briefcase, exact: false },
+  { href: "/search", label: "Search", icon: Search, exact: false },
+  { href: "/profile", label: "Profile", icon: UserCircle, exact: false },
 ];
 
 export function Nav() {
@@ -28,8 +28,8 @@ export function Nav() {
 
       {/* Nav links */}
       <nav className="flex-1 py-4 px-3 space-y-1">
-        {links.map(({ href, label, icon: Icon }) => {
-          const active = href === "/" ? path === "/" : path.startsWith(href);
+        {links.map(({ href, label, icon: Icon, exact }) => {
+          const active = exact ? path === href : path.startsWith(href);
           return (
             <Link
               key={href}
@@ -48,7 +48,7 @@ export function Nav() {
 
       {/* Footer */}
       <div className="px-5 py-4 border-t border-white/10">
-        <div className="text-xs text-white/30">Sprint 4-lite · Fit Reports</div>
+        <div className="text-xs text-white/30">Career Intelligence Workspace</div>
       </div>
     </aside>
   );

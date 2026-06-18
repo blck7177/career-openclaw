@@ -968,10 +968,20 @@ class MetadataStore:
         self,
         workspace_id: str,
         job_id: str | None = None,
+        candidate_profile_id: str | None = None,
     ) -> list[dict[str, Any]]:
-        """List fit reports for a workspace, optionally filtered by job_id, newest first."""
+        """List fit reports for a workspace, optionally filtered by job_id or candidate_profile_id, newest first."""
         with self._conn() as conn:
-            if job_id:
+            if job_id and candidate_profile_id:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM fit_reports
+                    WHERE workspace_id = ? AND job_id = ? AND candidate_profile_id = ?
+                    ORDER BY created_at DESC
+                    """,
+                    (workspace_id, job_id, candidate_profile_id),
+                ).fetchall()
+            elif job_id:
                 rows = conn.execute(
                     """
                     SELECT * FROM fit_reports
@@ -979,6 +989,15 @@ class MetadataStore:
                     ORDER BY created_at DESC
                     """,
                     (workspace_id, job_id),
+                ).fetchall()
+            elif candidate_profile_id:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM fit_reports
+                    WHERE workspace_id = ? AND candidate_profile_id = ?
+                    ORDER BY created_at DESC
+                    """,
+                    (workspace_id, candidate_profile_id),
                 ).fetchall()
             else:
                 rows = conn.execute(

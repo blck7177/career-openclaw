@@ -13,6 +13,13 @@ const nextConfig: NextConfig = {
       { source: "/auth/:path*", destination: `${BACKEND}/auth/:path*` },
     ];
   },
+  async redirects() {
+    return [
+      // /roles is the user-facing nav alias for the jobs catalog.
+      { source: "/roles", destination: "/jobs", permanent: false },
+      { source: "/roles/:path*", destination: "/jobs/:path*", permanent: false },
+    ];
+  },
 };
 
 export default nextConfig;

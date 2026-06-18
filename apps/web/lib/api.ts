@@ -275,6 +275,16 @@ export async function getProfile(profileId: string): Promise<CandidateProfile> {
   return req<CandidateProfile>(`/api/profiles/${profileId}`);
 }
 
+export async function updateProfile(
+  profileId: string,
+  data: Partial<CreateProfileInput>,
+): Promise<CandidateProfile> {
+  return req<CandidateProfile>(`/api/profiles/${profileId}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Fit Reports
 // ---------------------------------------------------------------------------
@@ -332,6 +342,17 @@ export async function getFitReport(
 
 export async function listJobFitReports(jobId: string): Promise<FitReportSummary[]> {
   return req<FitReportSummary[]>(`/api/jobs/${jobId}/fit-reports`);
+}
+
+export interface ProfileFitReportSummary extends FitReportSummary {
+  job_id: string;
+  recommended_next_action?: string;
+}
+
+export async function listFitReportsByProfile(
+  profileId: string,
+): Promise<ProfileFitReportSummary[]> {
+  return req<ProfileFitReportSummary[]>(`/api/fit-reports?profile_id=${profileId}`);
 }
 
 // ---------------------------------------------------------------------------

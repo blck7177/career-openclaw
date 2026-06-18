@@ -1,0 +1,2339 @@
+[
+  {
+    "case_id": "case1_directed_mid_size_max3yrs",
+    "user_instruction": "多找中型银行、保险公司、asset management，经验3年以下",
+    "intent_kind": "directed_discovery",
+    "num_lanes": 6,
+    "hard_constraints": [
+      "location: New York only",
+      "max_years_experience: 3"
+    ],
+    "negative_preferences": [
+      "deprioritise roles requiring more than 3 years of experience",
+      "deprioritise non-finance roles",
+      "deprioritise roles centered purely on model validation without adjacent risk or valuation workflow"
+    ],
+    "location_constraints": {
+      "preferred_locations": [
+        "New York",
+        "Jersey City"
+      ],
+      "remote_policy": "allow_if_finance_relevant"
+    },
+    "seniority_constraints": {
+      "target_levels": [
+        "analyst",
+        "junior_analyst",
+        "associate"
+      ],
+      "exclude_levels": [
+        "vp",
+        "director",
+        "managing_director"
+      ],
+      "max_years_experience": 3
+    },
+    "lanes": [
+      {
+        "lane_id": "market_risk_exposure",
+        "workstream_id": null,
+        "query_seeds": [
+          "market risk analyst New York",
+          "market risk exposure analyst NYC",
+          "risk analytics analyst stress testing New York",
+          "VaR analyst New York bank",
+          "stress testing analyst asset management New York",
+          "market risk reporting analyst insurance New York"
+        ],
+        "budget_share": 0.34,
+        "target_company_types": [
+          "bank",
+          "insurance_carrier",
+          "asset_manager",
+          "broker_dealer"
+        ],
+        "exclude_role_keywords": [
+          "software engineer",
+          "data engineer",
+          "pure model validation",
+          "credit risk only",
+          "operations analyst"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "UBS model validation background",
+          "VaR/ES experience",
+          "scenario/stress testing",
+          "sensitivity analysis",
+          "derivatives and fixed income exposure",
+          "Python/R and SQL automation",
+          "quantitative analyst / model risk management project work"
+        ]
+      },
+      {
+        "lane_id": "valuation_control_ipv",
+        "workstream_id": null,
+        "query_seeds": [
+          "valuation control analyst New York",
+          "IPV analyst New York",
+          "independent price verification analyst NYC",
+          "valuation analyst derivatives New York",
+          "product control analyst New York",
+          "valuation control associate asset management New York"
+        ],
+        "budget_share": 0.24,
+        "target_company_types": [
+          "bank",
+          "asset_manager",
+          "insurance_carrier",
+          "broker_dealer"
+        ],
+        "exclude_role_keywords": [
+          "senior valuation manager",
+          "director",
+          "VP",
+          "corporate finance",
+          "audit only"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "derivatives knowledge",
+          "fixed income knowledge",
+          "Bloomberg usage",
+          "Python/R analytical work",
+          "sensitivity analysis",
+          "model validation and backtesting experience"
+        ]
+      },
+      {
+        "lane_id": "product_control_pnl",
+        "workstream_id": null,
+        "query_seeds": [
+          "product control analyst New York",
+          "P&L reporting analyst NYC",
+          "trade support valuation control New York",
+          "product control associate derivatives New York",
+          "daily P&L analyst bank New York",
+          "front office product control asset management New York"
+        ],
+        "budget_share": 0.16,
+        "target_company_types": [
+          "bank",
+          "asset_manager",
+          "insurance_carrier",
+          "broker_dealer"
+        ],
+        "exclude_role_keywords": [
+          "middle office operations only",
+          "fund accounting only",
+          "treasury analyst",
+          "financial analyst general"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "P&L decomposition work",
+          "sensitivity analysis on risk drivers",
+          "derivatives and fixed income experience",
+          "Excel, SQL, Python automation",
+          "Bloomberg"
+        ]
+      },
+      {
+        "lane_id": "risk_analytics_automation",
+        "workstream_id": null,
+        "query_seeds": [
+          "risk analytics analyst New York",
+          "risk reporting automation analyst NYC",
+          "risk model analytics analyst bank New York",
+          "quant risk analyst Python New York",
+          "stress testing analytics automation New York",
+          "risk methodology analyst New York"
+        ],
+        "budget_share": 0.14,
+        "target_company_types": [
+          "bank",
+          "insurance_carrier",
+          "asset_manager"
+        ],
+        "exclude_role_keywords": [
+          "machine learning engineer",
+          "data scientist pure tech",
+          "software developer",
+          "non-finance analytics"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "Python/R (pandas, NumPy, SciPy, scikit-learn)",
+          "SQL",
+          "Git",
+          "automated residual diagnostics and backtesting",
+          "stability analysis",
+          "GLM/OLS, time series/GARCH, factor models"
+        ]
+      },
+      {
+        "lane_id": "structured_credit",
+        "workstream_id": null,
+        "query_seeds": [
+          "structured credit analyst New York",
+          "credit analytics analyst NYC",
+          "structured products analyst bank New York",
+          "credit risk analytics analyst asset management New York",
+          "fixed income credit analyst New York",
+          "CDS analyst New York"
+        ],
+        "budget_share": 0.12,
+        "target_company_types": [
+          "bank",
+          "asset_manager",
+          "insurance_carrier",
+          "broker_dealer"
+        ],
+        "exclude_role_keywords": [
+          "loan underwriting",
+          "commercial credit officer",
+          "collections",
+          "consumer credit only"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "CDS experience",
+          "PD / rating migration",
+          "fixed income",
+          "scenario/stress testing",
+          "quantitative analyst project work"
+        ]
+      },
+      {
+        "lane_id": "junior_quant_analyst_finance",
+        "workstream_id": null,
+        "query_seeds": [
+          "junior quant analyst New York finance",
+          "quantitative analyst market risk New York",
+          "risk quant analyst NYC",
+          "analyst quantitative finance New York",
+          "junior quantitative analyst bank New York"
+        ],
+        "budget_share": 0.0,
+        "target_company_types": [
+          "bank",
+          "asset_manager",
+          "insurance_carrier",
+          "broker_dealer"
+        ],
+        "exclude_role_keywords": [
+          "senior quant",
+          "quant developer C++ heavy",
+          "research scientist",
+          "VP"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "quantitative analyst title alignment",
+          "Python/R and SQL",
+          "GLM/OLS, time series/GARCH, PCA, tree-based ML",
+          "model validation and challenger models",
+          "financial computing and derivatives"
+        ]
+      }
+    ],
+    "source_strategy": {
+      "prefer_sources": [
+        "Schonfeld Greenhouse ATS board",
+        "live NYC Greenhouse boards",
+        "live NYC Lever boards",
+        "live NYC Ashby boards",
+        "NYC buy-side career pages",
+        "NYC bank career pages"
+      ],
+      "avoid_sources": []
+    },
+    "translator_notes": {
+      "assumptions": [
+        "'中型银行' was interpreted as mid-sized banks and similarly sized financial institutions, not a strict asset-size cutoff.",
+        "'asset management' was treated as inclusive of asset managers and buy-side firms with finance-relevant quant, risk, control, or valuation roles.",
+        "Because the user requested '经验3年以下', the intent was translated as a hard maximum of 3 years of experience.",
+        "No explicit industry exclusions were provided, so only soft preferences were set for banks, insurers, and asset managers rather than hard exclusions for other finance employers."
+      ],
+      "missing_information": [
+        "No explicit target titles were provided beyond the candidate's quantitative analyst orientation.",
+        "No salary floor, commute preference, or work authorization preference was provided.",
+        "No explicit preference between banking, insurance, and asset management was provided, so budget was allocated across all three plus adjacent market-risk and control lanes."
+      ],
+      "translator_version": "1.0.0"
+    },
+    "assertions": {
+      "intent_kind == directed_discovery": true,
+      "max_years_experience 3 in hard_constraints": true,
+      "at least one lane": true,
+      "company types present": true,
+      "no vp/director/senior in query seeds": true,
+      "artifacts saved": true
+    },
+    "all_passed": true
+  },
+  {
+    "case_id": "case2_profile_based_exploration",
+    "user_instruction": "我不确定自己适合什么，帮我探索",
+    "intent_kind": "profile_based_exploration",
+    "num_lanes": 5,
+    "hard_constraints": [
+      "location: New York only",
+      "max_years_experience: 3"
+    ],
+    "negative_preferences": [
+      "deprioritise roles outside New York",
+      "deprioritise roles requiring materially more than 3 years of experience",
+      "deprioritise roles with no quantitative or finance relevance"
+    ],
+    "location_constraints": {
+      "preferred_locations": [
+        "New York",
+        "Jersey City"
+      ],
+      "remote_policy": "allow_if_finance_relevant"
+    },
+    "seniority_constraints": {
+      "target_levels": [
+        "analyst",
+        "junior_associate",
+        "associate"
+      ],
+      "exclude_levels": [
+        "vp",
+        "director",
+        "managing_director"
+      ],
+      "max_years_experience": 3
+    },
+    "lanes": [
+      {
+        "lane_id": "market_risk_exposure",
+        "workstream_id": "market_risk_exposure",
+        "query_seeds": [
+          "market risk analyst NYC VaR stress testing",
+          "risk analytics analyst exposure management New York",
+          "market risk exposure analyst bank New York",
+          "stress testing analyst VaR ES New York",
+          "quantitative risk analyst market risk New York"
+        ],
+        "budget_share": 0.3,
+        "target_company_types": [
+          "bank",
+          "asset_manager",
+          "broker_dealer",
+          "hedge_fund"
+        ],
+        "exclude_role_keywords": [
+          "software engineer",
+          "product manager",
+          "sales",
+          "marketing",
+          "operations"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "UBS model validation background",
+          "VaR/ES experience",
+          "scenario/stress testing and sensitivity analysis",
+          "derivatives, fixed income, and CDS exposure",
+          "quantitative analysis for regulatory stress testing and risk drivers",
+          "Python/R, SQL, and Bloomberg used in risk analytics work"
+        ]
+      },
+      {
+        "lane_id": "valuation_control_ipv",
+        "workstream_id": "valuation_control_ipv",
+        "query_seeds": [
+          "valuation control analyst New York",
+          "independent price verification analyst NYC",
+          "IPV analyst bank New York",
+          "pricing control analyst derivatives New York",
+          "valuation analyst fixed income New York"
+        ],
+        "budget_share": 0.2,
+        "target_company_types": [
+          "bank",
+          "broker_dealer",
+          "asset_manager"
+        ],
+        "exclude_role_keywords": [
+          "equity research",
+          "trading sales",
+          "software engineer",
+          "operations"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "UBS model validation background",
+          "derivatives and fixed income domain experience",
+          "financial computing and quantitative methods",
+          "Python/R and SQL for analytical automation",
+          "representative project covered regulatory and model risk workflows"
+        ]
+      },
+      {
+        "lane_id": "product_control_pnl",
+        "workstream_id": "product_control_pnl",
+        "query_seeds": [
+          "product control analyst New York",
+          "P&L reporting analyst derivatives New York",
+          "finance control analyst fixed income New York",
+          "product controller bank New York",
+          "daily P&L analyst NYC"
+        ],
+        "budget_share": 0.18,
+        "target_company_types": [
+          "bank",
+          "broker_dealer"
+        ],
+        "exclude_role_keywords": [
+          "tax",
+          "accounts payable",
+          "general accounting",
+          "payroll"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "PnL decomposition work in risk-related project context",
+          "sensitivity analysis on risk drivers",
+          "derivatives and fixed income knowledge",
+          "Python/R and SQL for analytics",
+          "model validation experience in a banking environment"
+        ]
+      },
+      {
+        "lane_id": "risk_analytics_automation",
+        "workstream_id": "risk_analytics_automation",
+        "query_seeds": [
+          "risk analytics analyst Python SQL New York",
+          "model risk analytics automation analyst NYC",
+          "risk reporting automation analyst New York",
+          "quantitative analytics analyst Python R bank New York",
+          "risk model validation analyst automation New York"
+        ],
+        "budget_share": 0.15,
+        "target_company_types": [
+          "bank",
+          "asset_manager",
+          "hedge_fund",
+          "broker_dealer"
+        ],
+        "exclude_role_keywords": [
+          "full stack",
+          "backend engineer",
+          "devops",
+          "data engineer"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "Python/R, SQL, Git, Tableau/Power BI, Bloomberg",
+          "automated residual diagnostics, backtesting, and stability analysis",
+          "GLM, time series/GARCH, factor models, and ML methods",
+          "model validation and challenger model building experience"
+        ]
+      },
+      {
+        "lane_id": "structured_credit_adjacent",
+        "workstream_id": "structured_credit",
+        "query_seeds": [
+          "structured credit analyst New York",
+          "credit risk analyst fixed income New York",
+          "CDS analytics analyst NYC",
+          "credit modeling analyst rating migration New York",
+          "structured products risk analyst New York"
+        ],
+        "budget_share": 0.17,
+        "target_company_types": [
+          "bank",
+          "asset_manager",
+          "broker_dealer",
+          "hedge_fund"
+        ],
+        "exclude_role_keywords": [
+          "loan origination",
+          "retail banking",
+          "collections",
+          "commercial lending"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "CDS and fixed income experience",
+          "PD/rating migration analysis",
+          "stress PD and issuer default loss work",
+          "risk modeling and scenario analysis background",
+          "quantitative finance methods including PCA and factor models"
+        ]
+      }
+    ],
+    "source_strategy": {
+      "prefer_sources": [
+        "Schonfeld Greenhouse ATS board",
+        "NYC Greenhouse boards",
+        "NYC Lever boards",
+        "NYC Ashby boards",
+        "additional NYC buy-side and bank career pages"
+      ],
+      "avoid_sources": []
+    },
+    "translator_notes": {
+      "assumptions": [
+        "The user's Chinese instruction was interpreted as a request for exploratory, profile-based search rather than a request for direct recommendations.",
+        "Jersey City was included as a preferred location from product defaults, but the hard location constraint was preserved as New York only because the profile explicitly states New York Only.",
+        "No explicit industry exclusions were provided, so only role-type exclusions and prioritization were applied.",
+        "The profile_id was not provided explicitly; a stable placeholder was used for traceability."
+      ],
+      "missing_information": [
+        "No explicit target seniority beyond general analyst-level fit was provided.",
+        "No company-type exclusions or industry exclusions were provided.",
+        "No compensation range, remote preference, or commute tolerance beyond location was provided.",
+        "No explicit willingness to consider contract roles, internships, or rotating programs was provided."
+      ],
+      "translator_version": "1.0.0"
+    },
+    "assertions": {
+      "intent_kind == profile_based_exploration": true,
+      "3 to 5 lanes": true,
+      "every lane has evidence_from_profile": true,
+      "every lane has query_seeds": true
+    },
+    "all_passed": true
+  },
+  {
+    "case_id": "case3_no_model_validation",
+    "user_instruction": "不要 model validation",
+    "intent_kind": "directed_discovery",
+    "num_lanes": 4,
+    "hard_constraints": [
+      "location: New York only",
+      "exclude_role_type: model validation"
+    ],
+    "negative_preferences": [
+      "do not prioritize pure model validation",
+      "deprioritize roles centered on model development for credit/market/operational validation reviews",
+      "avoid non-finance analytics roles"
+    ],
+    "location_constraints": {
+      "preferred_locations": [
+        "New York",
+        "Jersey City"
+      ],
+      "remote_policy": "allow_if_finance_relevant"
+    },
+    "seniority_constraints": {
+      "target_levels": [
+        "analyst",
+        "associate",
+        "junior_associate"
+      ],
+      "max_years_experience": 3
+    },
+    "lanes": [
+      {
+        "lane_id": "market_risk_exposure",
+        "workstream_id": "market_risk_exposure",
+        "query_seeds": [
+          "market risk analyst New York",
+          "market risk exposure analyst NYC",
+          "risk analytics analyst VaR stress testing New York",
+          "market risk reporting analyst fixed income derivatives NYC",
+          "risk exposure analytics Python SQL New York"
+        ],
+        "budget_share": 0.5,
+        "target_company_types": [
+          "bank",
+          "broker_dealer",
+          "asset_manager",
+          "hedge_fund"
+        ],
+        "exclude_role_keywords": [
+          "model validation",
+          "validation",
+          "model risk management"
+        ],
+        "inherited_hard_constraints": [
+          "exclude_role_type: model validation",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "3 years experience in UBS model validation with market risk-adjacent coverage",
+          "VaR / ES, scenario/stress testing, sensitivity analysis, derivatives, fixed income, CDS",
+          "Python/R, SQL, Excel, Tableau/Power BI, Bloomberg",
+          "Representative project on VaR PnL decomposition and risk-driver sensitivity analysis"
+        ]
+      },
+      {
+        "lane_id": "valuation_control_ipv",
+        "workstream_id": "valuation_control_ipv",
+        "query_seeds": [
+          "valuation control analyst New York",
+          "independent price verification analyst NYC",
+          "IPV analyst fixed income derivatives New York",
+          "price verification analyst financial products NYC",
+          "product control valuation analyst New York"
+        ],
+        "budget_share": 0.25,
+        "target_company_types": [
+          "bank",
+          "broker_dealer",
+          "asset_manager"
+        ],
+        "exclude_role_keywords": [
+          "model validation",
+          "validation",
+          "model risk management"
+        ],
+        "inherited_hard_constraints": [
+          "exclude_role_type: model validation",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "Derivatives and fixed income domain experience",
+          "Bloomberg, Python/R, SQL, Excel",
+          "Quantitative methods including optimization, simulation, PCA, and factor models",
+          "Current work in a control-oriented risk function"
+        ]
+      },
+      {
+        "lane_id": "product_control_pnl",
+        "workstream_id": "product_control_pnl",
+        "query_seeds": [
+          "product control analyst New York",
+          "P&L reporting analyst fixed income NYC",
+          "trade support PnL analyst New York",
+          "product controller derivatives NYC",
+          "P&L control analyst market risk New York"
+        ],
+        "budget_share": 0.15,
+        "target_company_types": [
+          "bank",
+          "broker_dealer",
+          "asset_manager"
+        ],
+        "exclude_role_keywords": [
+          "model validation",
+          "validation",
+          "model risk management"
+        ],
+        "inherited_hard_constraints": [
+          "exclude_role_type: model validation",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "Derivatives, fixed income, CDS, and sensitivity analysis exposure",
+          "Strong Excel, SQL, Python/R, and Tableau/Power BI skills",
+          "Experience in control and challenge workflow for risk models",
+          "Quantitative analyst target profile"
+        ]
+      },
+      {
+        "lane_id": "structured_credit_risk_analytics",
+        "workstream_id": "structured_credit_risk_analytics",
+        "query_seeds": [
+          "credit risk analyst New York stress testing",
+          "structured credit risk analyst NYC",
+          "credit analytics analyst PD migration New York",
+          "credit risk modeling analyst not validation NYC",
+          "counterparty credit risk analyst New York"
+        ],
+        "budget_share": 0.1,
+        "target_company_types": [
+          "bank",
+          "broker_dealer",
+          "asset_manager",
+          "insurance_carrier"
+        ],
+        "exclude_role_keywords": [
+          "model validation",
+          "validation",
+          "model risk management"
+        ],
+        "inherited_hard_constraints": [
+          "exclude_role_type: model validation",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "CDS, PD/rating migration, stress PD, issuer default loss",
+          "One-factor Gaussian rating-transition framework review",
+          "Quantitative methods in GLM, time series, and machine learning",
+          "Python/R model challenger and diagnostics automation"
+        ]
+      }
+    ],
+    "source_strategy": {
+      "prefer_sources": [
+        "Schonfeld Greenhouse ATS board",
+        "NYC Greenhouse boards",
+        "NYC Lever boards",
+        "NYC Ashby boards",
+        "additional NYC buy-side and bank career pages"
+      ],
+      "avoid_sources": []
+    },
+    "translator_notes": {
+      "assumptions": [
+        "'New York Only' was interpreted as NYC-area search focus, including Jersey City only if the listing is clearly NYC-adjacent and finance-relevant; the main location constraint remains New York only.",
+        "Because the user explicitly said '不要 model validation', model validation was treated as a hard exclusion across all lanes, even when the profile includes model validation experience.",
+        "No separate workstream taxonomy was loaded, so lane workstream_id values were aligned to the named gaps in strategy_context and the candidate target_workstreams where possible."
+      ],
+      "missing_information": [
+        "No explicit preference was provided for company type beyond the recent company signal and strategy sources, so target_company_types are broad finance firm categories.",
+        "No salary, remote/hybrid preference beyond product defaults, or exact seniority ceiling beyond 3 years was provided.",
+        "The profile does not specify whether the user wants bank, buy-side, or broker-dealer roles most, so lanes remain broad within NYC finance."
+      ],
+      "translator_version": "1.0.0"
+    },
+    "assertions": {
+      "negative_preferences mention model validation": true,
+      "no seed is purely model validation": true,
+      "at least one lane": true
+    },
+    "all_passed": true
+  },
+  {
+    "case_id": "case4_exposure_management",
+    "user_instruction": "多找 exposure management",
+    "intent_kind": "directed_discovery",
+    "num_lanes": 4,
+    "hard_constraints": [
+      "location: New York only",
+      "max_years_experience: 3"
+    ],
+    "negative_preferences": [
+      "deprioritise pure model validation roles unless they clearly involve exposure management",
+      "deprioritise roles outside New York / Jersey City",
+      "deprioritise senior roles above junior-analyst / associate level"
+    ],
+    "location_constraints": {
+      "preferred_locations": [
+        "New York"
+      ],
+      "remote_policy": "allow_if_finance_relevant"
+    },
+    "seniority_constraints": {
+      "target_levels": [
+        "analyst",
+        "associate",
+        "junior_associate"
+      ],
+      "max_years_experience": 3
+    },
+    "lanes": [
+      {
+        "lane_id": "exposure_management",
+        "workstream_id": "market_risk_exposure",
+        "query_seeds": [
+          "exposure management analyst New York",
+          "market risk exposure analyst New York",
+          "trade exposure management risk analyst New York",
+          "exposure monitoring analyst bank New York",
+          "market risk exposure reporting analyst New York",
+          "stress testing exposure analyst New York"
+        ],
+        "budget_share": 0.5,
+        "target_company_types": [
+          "bank",
+          "broker_dealer",
+          "asset_manager",
+          "hedge_fund"
+        ],
+        "exclude_role_keywords": [
+          "software engineer",
+          "data engineer",
+          "pure model validation",
+          "finance intern"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "VaR / ES experience",
+          "scenario and stress testing",
+          "sensitivity analysis on risk drivers",
+          "derivatives and fixed income exposure",
+          "market risk model validation and PnL decomposition",
+          "predictive models for regulatory stress testing"
+        ]
+      },
+      {
+        "lane_id": "valuation_control_ipv",
+        "workstream_id": null,
+        "query_seeds": [
+          "valuation control analyst New York",
+          "independent price verification analyst New York",
+          "IPV analyst New York bank",
+          "product control valuation analyst New York",
+          "valuation control risk analyst New York",
+          "front office valuation control analyst New York"
+        ],
+        "budget_share": 0.25,
+        "target_company_types": [
+          "bank",
+          "broker_dealer",
+          "asset_manager"
+        ],
+        "exclude_role_keywords": [
+          "accounts payable",
+          "bookkeeping",
+          "audit only",
+          "tax"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "derivatives and fixed income exposure",
+          "sensitivity analysis",
+          "analytical methods in Python/R and SQL",
+          "financial computing and market risk context"
+        ]
+      },
+      {
+        "lane_id": "product_control_pnl",
+        "workstream_id": null,
+        "query_seeds": [
+          "product control analyst New York",
+          "P&L reporting analyst New York",
+          "desk analyst P&L control New York",
+          "trading desk product control New York",
+          "product controller derivatives New York",
+          "P&L explain analyst New York"
+        ],
+        "budget_share": 0.15,
+        "target_company_types": [
+          "bank",
+          "broker_dealer",
+          "asset_manager"
+        ],
+        "exclude_role_keywords": [
+          "corporate accounting",
+          "accounts receivable",
+          "payroll",
+          "tax"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "PnL decomposition exposure in model risk work",
+          "sensitivity analysis",
+          "derivatives",
+          "fixed income",
+          "market risk and stress testing"
+        ]
+      },
+      {
+        "lane_id": "risk_analytics_automation",
+        "workstream_id": null,
+        "query_seeds": [
+          "risk analytics analyst Python New York",
+          "risk reporting automation analyst New York",
+          "market risk analytics Python SQL New York",
+          "risk dashboard analyst New York",
+          "risk reporting automation bank New York",
+          "exposure reporting analytics New York"
+        ],
+        "budget_share": 0.1,
+        "target_company_types": [
+          "bank",
+          "broker_dealer",
+          "asset_manager",
+          "hedge_fund"
+        ],
+        "exclude_role_keywords": [
+          "data engineer",
+          "software engineer",
+          "business intelligence only"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "Python/R automation",
+          "SQL",
+          "Git",
+          "backtesting and stability analysis",
+          "automated residual diagnostics",
+          "risk model challenger development"
+        ]
+      }
+    ],
+    "source_strategy": {
+      "prefer_sources": [
+        "Schonfeld Greenhouse ATS board",
+        "New York Greenhouse boards",
+        "New York Lever boards",
+        "New York Ashby boards",
+        "NYC buy-side career pages",
+        "NYC bank career pages"
+      ],
+      "avoid_sources": []
+    },
+    "translator_notes": {
+      "assumptions": [
+        "The user instruction '多找 exposure management' was interpreted as a strong preference to prioritize exposure management search lanes, not as an exclusion of other adjacent risk-control lanes.",
+        "New York only was treated as an absolute location constraint and not expanded to Jersey City despite product defaults.",
+        "No explicit seniority title was provided, so junior analyst / associate level was inferred from 3 years of experience."
+      ],
+      "missing_information": [
+        "No explicit target company type was provided beyond a recent company signal; search was therefore broadened to relevant NYC banks, broker-dealers, hedge funds, and asset managers.",
+        "No explicit exclusion list was provided for role families beyond the implied focus on exposure management; user may want to specify whether to exclude pure model risk / validation in future runs."
+      ],
+      "translator_version": "1.0.0"
+    },
+    "assertions": {
+      "intent_kind == directed_discovery": true,
+      "main lane targets exposure": true,
+      "profile evidence present (VaR or stress)": true
+    },
+    "all_passed": true
+  },
+  {
+    "case_id": "case5_nyc_analyst_associate",
+    "user_instruction": "只要 NYC analyst/associate",
+    "intent_kind": "directed_discovery",
+    "num_lanes": 4,
+    "hard_constraints": [
+      "location: New York City only",
+      "target_levels: analyst, associate",
+      "max_years_experience: 3"
+    ],
+    "negative_preferences": [
+      "deprioritise senior roles above associate",
+      "deprioritise non-NYC locations"
+    ],
+    "location_constraints": {
+      "preferred_locations": [
+        "New York City"
+      ],
+      "remote_policy": "allow_if_finance_relevant"
+    },
+    "seniority_constraints": {
+      "target_levels": [
+        "analyst",
+        "associate"
+      ],
+      "exclude_levels": [
+        "vp",
+        "director",
+        "managing_director"
+      ],
+      "max_years_experience": 3
+    },
+    "lanes": [
+      {
+        "lane_id": "market_risk_exposure",
+        "workstream_id": "market_risk_exposure",
+        "query_seeds": [
+          "NYC market risk analyst",
+          "NYC market risk associate",
+          "NYC risk exposure analyst",
+          "NYC stress testing analyst",
+          "NYC VaR analyst",
+          "NYC scenario analysis risk associate",
+          "NYC risk analytics analyst"
+        ],
+        "budget_share": 0.4,
+        "target_company_types": [
+          "bank",
+          "broker_dealer",
+          "asset_manager",
+          "hedge_fund"
+        ],
+        "exclude_role_keywords": [
+          "sales",
+          "trading",
+          "operations",
+          "software engineer",
+          "pure data analyst"
+        ],
+        "inherited_hard_constraints": [
+          "target_levels: analyst, associate",
+          "max_years_experience: 3",
+          "location: New York City only"
+        ],
+        "evidence_from_profile": [
+          "3 years of UBS model validation experience",
+          "VaR/ES, scenario/stress testing, and sensitivity analysis experience",
+          "derivatives, fixed income, and CDS domain exposure",
+          "Python/R, SQL, Excel, and Bloomberg skills",
+          "Representative project covered VaR forecast and PnL decomposition with risk-driver analysis"
+        ]
+      },
+      {
+        "lane_id": "valuation_control_ipv",
+        "workstream_id": "valuation_control_ipv",
+        "query_seeds": [
+          "NYC valuation control analyst",
+          "NYC valuation control associate",
+          "NYC IPV analyst",
+          "NYC independent price verification analyst",
+          "NYC pricing control analyst",
+          "NYC valuation review analyst",
+          "NYC product control valuation analyst"
+        ],
+        "budget_share": 0.3,
+        "target_company_types": [
+          "bank",
+          "broker_dealer",
+          "asset_manager"
+        ],
+        "exclude_role_keywords": [
+          "audit",
+          "tax",
+          "fund accounting",
+          "middle office",
+          "software engineer"
+        ],
+        "inherited_hard_constraints": [
+          "target_levels: analyst, associate",
+          "max_years_experience: 3",
+          "location: New York City only"
+        ],
+        "evidence_from_profile": [
+          "derivatives and fixed income domain experience",
+          "CDS and advanced term structure exposure",
+          "model validation background with quantitative review workflows",
+          "Python/R and SQL for analytical automation",
+          "Financial Computing and risk analytics methods"
+        ]
+      },
+      {
+        "lane_id": "product_control_pnl",
+        "workstream_id": "product_control_pnl",
+        "query_seeds": [
+          "NYC product control analyst",
+          "NYC product control associate",
+          "NYC P&L reporting analyst",
+          "NYC PnL analyst",
+          "NYC P&L control analyst",
+          "NYC risk and PnL analyst",
+          "NYC finance control analyst"
+        ],
+        "budget_share": 0.18,
+        "target_company_types": [
+          "bank",
+          "broker_dealer"
+        ],
+        "exclude_role_keywords": [
+          "accounts payable",
+          "accounts receivable",
+          "bookkeeping",
+          "controller",
+          "financial reporting accountant"
+        ],
+        "inherited_hard_constraints": [
+          "target_levels: analyst, associate",
+          "max_years_experience: 3",
+          "location: New York City only"
+        ],
+        "evidence_from_profile": [
+          "PnL decomposition work in a risk context",
+          "sensitivity analysis on risk drivers",
+          "derivatives and fixed income exposure",
+          "model validation and automated diagnostics experience",
+          "Python/SQL/Excel and dashboarding tools"
+        ]
+      },
+      {
+        "lane_id": "risk_analytics_automation",
+        "workstream_id": "risk_analytics_automation",
+        "query_seeds": [
+          "NYC risk analytics analyst",
+          "NYC risk analytics associate",
+          "NYC model risk analyst",
+          "NYC risk reporting automation analyst",
+          "NYC quantitative risk analyst",
+          "NYC risk systems analyst",
+          "NYC quantitative analyst risk"
+        ],
+        "budget_share": 0.12,
+        "target_company_types": [
+          "bank",
+          "asset_manager",
+          "broker_dealer",
+          "hedge_fund"
+        ],
+        "exclude_role_keywords": [
+          "machine learning engineer",
+          "data engineer",
+          "software engineer",
+          "IT",
+          "devops"
+        ],
+        "inherited_hard_constraints": [
+          "target_levels: analyst, associate",
+          "max_years_experience: 3",
+          "location: New York City only"
+        ],
+        "evidence_from_profile": [
+          "built Python/R challenger models",
+          "automated residual diagnostics, backtesting, and stability analysis",
+          "Python/R, SQL, Git, and visualization tools",
+          "experience with GLM diagnostics, time series/GARCH, factor models, and simulation",
+          "regulatory stress-testing and model review workflow"
+        ]
+      }
+    ],
+    "source_strategy": {
+      "prefer_sources": [
+        "Schonfeld Greenhouse ATS board",
+        "NYC Greenhouse boards",
+        "NYC Lever boards",
+        "NYC Ashby boards",
+        "bank career pages",
+        "buy-side career pages"
+      ],
+      "avoid_sources": []
+    },
+    "translator_notes": {
+      "assumptions": [
+        "The user instruction '只要 NYC analyst/associate' was interpreted as a hard location and seniority constraint for New York City analyst/associate roles only.",
+        "Jersey City from product defaults was not included because the user explicitly requested NYC only.",
+        "Profile evidence from model validation was used to infer adjacent lanes in market risk, valuation control/IPV, product control/P&L, and risk analytics automation."
+      ],
+      "missing_information": [
+        "No explicit industry exclusions were provided.",
+        "No explicit company-type preferences were provided beyond the strategy context and profile fit.",
+        "No explicit compensation, remote, or visa constraints were provided."
+      ],
+      "translator_version": "1.0.0"
+    },
+    "assertions": {
+      "NYC in hard_constraints or preferred_locations": true,
+      "analyst/associate in hard_constraints or target_levels": true,
+      "all lanes inherit at least one hard constraint": true
+    },
+    "all_passed": true
+  },
+  {
+    "case_id": "case6_portfolio_analytics_gap_fill",
+    "user_instruction": "帮我补 portfolio analytics coverage",
+    "intent_kind": "gap_fill_discovery",
+    "num_lanes": 5,
+    "hard_constraints": [
+      "location: New York only",
+      "max_years_experience: 3"
+    ],
+    "negative_preferences": [
+      "deprioritize pure model validation roles unless clearly adjacent to portfolio analytics",
+      "deprioritize roles requiring materially more than 3 years of experience",
+      "avoid non-finance generic data/BI roles without market risk, valuation, or portfolio analytics content"
+    ],
+    "location_constraints": {
+      "preferred_locations": [
+        "New York",
+        "Jersey City"
+      ],
+      "remote_policy": "allow_if_finance_relevant"
+    },
+    "seniority_constraints": {
+      "target_levels": [
+        "analyst",
+        "associate"
+      ],
+      "exclude_levels": [
+        "vp",
+        "director",
+        "managing_director"
+      ],
+      "max_years_experience": 3
+    },
+    "lanes": [
+      {
+        "lane_id": "portfolio_analytics",
+        "workstream_id": "portfolio_analytics",
+        "query_seeds": [
+          "portfolio analytics analyst New York",
+          "portfolio analytics associate NYC",
+          "portfolio analytics risk reporting New York",
+          "portfolio performance analytics analyst New York",
+          "portfolio analytics fixed income New York",
+          "investment portfolio analytics analyst bank New York"
+        ],
+        "budget_share": 0.35,
+        "target_company_types": [
+          "asset_manager",
+          "bank",
+          "buy_side",
+          "broker_dealer"
+        ],
+        "exclude_role_keywords": [
+          "software engineer",
+          "data engineer",
+          "business intelligence only",
+          "pure model validation",
+          "back office operations only"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "3 years of experience",
+          "UBS model validation background",
+          "VaR/ES, scenario/stress testing, sensitivity analysis",
+          "derivatives and fixed income exposure",
+          "Python/R, SQL, Tableau/Power BI",
+          "automated residual diagnostics, backtesting, stability analysis"
+        ]
+      },
+      {
+        "lane_id": "valuation_control_ipv",
+        "workstream_id": "valuation_control_ipv",
+        "query_seeds": [
+          "valuation control analyst New York",
+          "independent price verification analyst NYC",
+          "IPV analyst New York bank",
+          "product control valuation analyst New York",
+          "fair value control analyst New York",
+          "valuation analysis associate New York"
+        ],
+        "budget_share": 0.2,
+        "target_company_types": [
+          "bank",
+          "broker_dealer",
+          "asset_manager"
+        ],
+        "exclude_role_keywords": [
+          "tax",
+          "audit only",
+          "fund accounting only",
+          "software engineer"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "derivatives and fixed income exposure",
+          "Bloomberg tools familiarity",
+          "quantitative validation workflow",
+          "Python/R and SQL for analytics automation"
+        ]
+      },
+      {
+        "lane_id": "product_control_pnl",
+        "workstream_id": "product_control_pnl",
+        "query_seeds": [
+          "product control analyst New York",
+          "P&L reporting analyst NYC",
+          "P&L explain analyst New York",
+          "product control associate New York bank",
+          "P&L attribution analyst New York",
+          "market risk P&L reporting New York"
+        ],
+        "budget_share": 0.2,
+        "target_company_types": [
+          "bank",
+          "broker_dealer"
+        ],
+        "exclude_role_keywords": [
+          "audit only",
+          "fund accountant",
+          "middle office operations only",
+          "software engineer"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "PnL decomposition in VaR RWA work",
+          "sensitivity analysis on risk drivers",
+          "fixed income and derivatives domain experience",
+          "Excel, SQL, Tableau/Power BI"
+        ]
+      },
+      {
+        "lane_id": "market_risk_exposure",
+        "workstream_id": "market_risk_exposure",
+        "query_seeds": [
+          "market risk analyst New York",
+          "risk analytics analyst NYC",
+          "exposure reporting analyst New York",
+          "market risk exposure analyst New York",
+          "stress testing analyst New York bank",
+          "risk reporting analyst fixed income New York"
+        ],
+        "budget_share": 0.15,
+        "target_company_types": [
+          "bank",
+          "broker_dealer",
+          "asset_manager"
+        ],
+        "exclude_role_keywords": [
+          "pure model validation",
+          "regulatory reporting only",
+          "software engineer"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "VaR/ES experience",
+          "scenario/stress testing",
+          "sensitivity analysis",
+          "derivatives",
+          "fixed income",
+          "CDS, PD/rating migration",
+          "model validation in market and credit risk"
+        ]
+      },
+      {
+        "lane_id": "risk_analytics_automation",
+        "workstream_id": "risk_analytics_automation",
+        "query_seeds": [
+          "risk analytics automation analyst New York",
+          "portfolio analytics automation New York",
+          "risk reporting automation analyst NYC",
+          "analytics automation market risk New York",
+          "financial analytics python sql New York",
+          "risk data analytics analyst New York"
+        ],
+        "budget_share": 0.1,
+        "target_company_types": [
+          "bank",
+          "asset_manager",
+          "broker_dealer"
+        ],
+        "exclude_role_keywords": [
+          "data engineer",
+          "software engineer",
+          "platform engineer",
+          "generic BI"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "Python/R automation",
+          "SQL",
+          "backtesting and stability analysis",
+          "Tableau/Power BI",
+          "finance computing and ML methods"
+        ]
+      }
+    ],
+    "source_strategy": {
+      "prefer_sources": [
+        "Schonfeld Greenhouse ATS board",
+        "NYC Greenhouse boards",
+        "NYC Lever boards",
+        "NYC Ashby boards",
+        "additional NYC buy-side career pages",
+        "additional NYC bank career pages"
+      ],
+      "avoid_sources": []
+    },
+    "translator_notes": {
+      "assumptions": [
+        "'portfolio analytics coverage' was interpreted as a request to broaden search coverage into portfolio analytics and closely adjacent finance analytics workstreams, not as a request for a single exact job title.",
+        "The profile's current UBS model validation experience was treated as evidence for adjacent lanes in market risk, valuation control, product control P&L, and risk analytics automation.",
+        "No workstream taxonomy was provided, so workstream_id values were inferred from the lane names and strategy gaps."
+      ],
+      "missing_information": [
+        "No explicit company-type preference beyond finance-relevant roles was provided.",
+        "No explicit target compensation, schedule, or team preference was provided.",
+        "No explicit exclusion list beyond location and inferred seniority constraints was provided.",
+        "A profile_id was not supplied in the input."
+      ],
+      "translator_version": "1.0.0"
+    },
+    "assertions": {
+      "intent_kind is gap_fill or directed": true,
+      "at least one portfolio-focused lane": true,
+      "primary lane seeds not generic data analyst": true
+    },
+    "all_passed": true
+  },
+  {
+    "case_id": "case7_insurance_investment_risk",
+    "user_instruction": "找 insurance investment risk，3年以下",
+    "intent_kind": "directed_discovery",
+    "num_lanes": 5,
+    "hard_constraints": [
+      "location: New York only",
+      "max_years_experience: 3",
+      "target_domain: insurance investment risk"
+    ],
+    "negative_preferences": [
+      "deprioritise pure model validation roles unless clearly adjacent to insurance investment risk",
+      "avoid roles requiring more than 3 years of experience",
+      "avoid non-NYC locations",
+      "avoid non-finance or generic analytics roles without investment or risk content"
+    ],
+    "location_constraints": {
+      "preferred_locations": [
+        "New York"
+      ],
+      "remote_policy": "allow_if_finance_relevant"
+    },
+    "seniority_constraints": {
+      "target_levels": [
+        "analyst",
+        "junior_analyst",
+        "associate"
+      ],
+      "exclude_levels": [
+        "vp",
+        "director",
+        "managing_director"
+      ],
+      "max_years_experience": 3
+    },
+    "lanes": [
+      {
+        "lane_id": "insurance_investment_risk",
+        "workstream_id": "investment_risk",
+        "query_seeds": [
+          "insurance investment risk analyst New York",
+          "investment risk analyst insurance New York",
+          "insurance risk analytics analyst NYC",
+          "investment risk associate insurance New York",
+          "asset liability risk analyst insurance New York"
+        ],
+        "budget_share": 0.4,
+        "target_company_types": [
+          "insurance_carrier",
+          "insurer_asset_manager",
+          "asset_manager",
+          "bank"
+        ],
+        "exclude_role_keywords": [
+          "senior",
+          "vp",
+          "director",
+          "managing director",
+          "actuarial",
+          "claims",
+          "underwriting"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "target_domain: insurance investment risk",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "3 years of experience",
+          "UBS model validation background",
+          "VaR/ES, scenario/stress testing, and sensitivity analysis experience",
+          "fixed income and derivatives exposure",
+          "Python/R, SQL, Excel, and analytics tooling",
+          "predictive and challenger model work for regulatory stress testing"
+        ]
+      },
+      {
+        "lane_id": "market_risk_exposure",
+        "workstream_id": "market_risk",
+        "query_seeds": [
+          "market risk analyst New York insurance",
+          "risk exposure analyst New York finance",
+          "market risk exposure analyst NYC",
+          "investment risk market risk analyst New York",
+          "risk analytics analyst VaR stress testing New York"
+        ],
+        "budget_share": 0.2,
+        "target_company_types": [
+          "insurance_carrier",
+          "bank",
+          "broker_dealer",
+          "asset_manager"
+        ],
+        "exclude_role_keywords": [
+          "model validation",
+          "quant developer",
+          "software engineer",
+          "trading",
+          "sales"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "target_domain: insurance investment risk",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "VaR/ES experience",
+          "scenario/stress testing",
+          "sensitivity analysis on risk drivers",
+          "derivatives and fixed income domain exposure",
+          "UBS model validation on market risk forecasting and stress testing"
+        ]
+      },
+      {
+        "lane_id": "valuation_control_ipv",
+        "workstream_id": "valuation_control",
+        "query_seeds": [
+          "valuation control analyst New York insurance",
+          "independent price verification analyst NYC",
+          "IPV analyst fixed income derivatives New York",
+          "valuation control risk analyst New York",
+          "price verification analyst finance New York"
+        ],
+        "budget_share": 0.15,
+        "target_company_types": [
+          "insurance_carrier",
+          "asset_manager",
+          "bank",
+          "broker_dealer"
+        ],
+        "exclude_role_keywords": [
+          "accounting",
+          "auditor",
+          "reconciliation only",
+          "fund accounting",
+          "financial reporting"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "target_domain: insurance investment risk",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "derivatives experience",
+          "fixed income exposure",
+          "Bloomberg usage",
+          "quantitative analysis and model testing",
+          "sensitivity analysis and pricing-related risk concepts"
+        ]
+      },
+      {
+        "lane_id": "risk_analytics_automation",
+        "workstream_id": "risk_analytics",
+        "query_seeds": [
+          "risk analytics analyst Python SQL New York",
+          "risk automation analyst finance New York",
+          "investment risk analytics Python New York",
+          "risk reporting analyst NYC Python SQL",
+          "portfolio risk analytics analyst New York"
+        ],
+        "budget_share": 0.15,
+        "target_company_types": [
+          "insurance_carrier",
+          "asset_manager",
+          "bank",
+          "broker_dealer"
+        ],
+        "exclude_role_keywords": [
+          "data engineer",
+          "business intelligence only",
+          "product analyst",
+          "marketing analytics"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "target_domain: insurance investment risk",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "Python/R automation and modeling",
+          "SQL and Git",
+          "built challenger models",
+          "automated residual diagnostics, backtesting, and stability analysis",
+          "Tableau/Power BI reporting"
+        ]
+      },
+      {
+        "lane_id": "structured_credit_portfolio_risk",
+        "workstream_id": "credit_risk",
+        "query_seeds": [
+          "credit portfolio risk analyst New York insurance",
+          "structured credit risk analyst NYC",
+          "investment credit risk analyst New York",
+          "fixed income credit risk analyst insurance New York",
+          "credit risk analytics analyst New York"
+        ],
+        "budget_share": 0.1,
+        "target_company_types": [
+          "insurance_carrier",
+          "asset_manager",
+          "bank",
+          "broker_dealer"
+        ],
+        "exclude_role_keywords": [
+          "corporate credit underwriting",
+          "loan officer",
+          "retail credit",
+          "collections"
+        ],
+        "inherited_hard_constraints": [
+          "max_years_experience: 3",
+          "target_domain: insurance investment risk",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "CDS exposure",
+          "PD and rating migration experience",
+          "fixed income domain knowledge",
+          "stress testing experience",
+          "credit risk and loss forecasting work"
+        ]
+      }
+    ],
+    "source_strategy": {
+      "prefer_sources": [
+        "Schonfeld Greenhouse ATS board",
+        "NYC Greenhouse boards",
+        "NYC Lever boards",
+        "NYC Ashby boards",
+        "buy-side career pages",
+        "bank career pages"
+      ],
+      "avoid_sources": []
+    },
+    "translator_notes": {
+      "assumptions": [
+        "Interpreted 'insurance investment risk' as a target domain likely including insurer investment risk, portfolio risk, valuation control, and adjacent credit/market risk roles.",
+        "Interpreted '3年以下' as a hard maximum years-of-experience constraint of 3 years.",
+        "No explicit company-type exclusions were provided, so insurer, asset manager, bank, and broker-dealer targets are all retained if finance-relevant.",
+        "Because workstream taxonomy was not loaded, workstream_id values were inferred from the lane themes rather than copied from a source taxonomy."
+      ],
+      "missing_information": [
+        "No explicit target level was provided beyond the experience cap; analyst and associate are inferred as likely fits.",
+        "No explicit insurer names, asset class focus, or preferred subdomain within insurance investment risk were provided.",
+        "No explicit exclusion list for model validation, actuarial, or middle-office control work was provided."
+      ],
+      "translator_version": "1.0.0"
+    },
+    "assertions": {
+      "intent_kind == directed_discovery": true,
+      "insurance mentioned in hard_constraints or company_types": true,
+      "max_years_experience 3 in hard_constraints": true,
+      "seeds reference insurance or risk (not only banking)": true
+    },
+    "all_passed": true
+  },
+  {
+    "case_id": "case8_empty_instruction_rich_profile",
+    "user_instruction": "",
+    "intent_kind": "gap_fill_discovery",
+    "num_lanes": 5,
+    "hard_constraints": [
+      "location: New York only",
+      "target_seniority: early-career / analyst-level fit",
+      "max_years_experience: 3"
+    ],
+    "negative_preferences": [
+      "deprioritise pure model validation roles",
+      "deprioritise roles requiring 5+ years of experience",
+      "deprioritise non-finance generic data analyst roles",
+      "deprioritise roles outside New York City / nearby New Jersey commuting range"
+    ],
+    "location_constraints": {
+      "preferred_locations": [
+        "New York",
+        "Jersey City"
+      ],
+      "remote_policy": "allow_if_finance_relevant"
+    },
+    "seniority_constraints": {
+      "target_levels": [
+        "analyst",
+        "associate"
+      ],
+      "exclude_levels": [
+        "vp",
+        "director",
+        "managing_director"
+      ],
+      "max_years_experience": 3
+    },
+    "lanes": [
+      {
+        "lane_id": "market_risk_exposure",
+        "workstream_id": "market_risk_exposure",
+        "query_seeds": [
+          "market risk analyst VaR stress testing New York",
+          "risk exposure analyst derivatives fixed income New York",
+          "market risk analytics analyst Python SQL New York",
+          "stress testing risk analyst bank New York",
+          "risk reporting analyst VaR ES New York"
+        ],
+        "budget_share": 0.3,
+        "target_company_types": [
+          "bank",
+          "broker_dealer",
+          "asset_manager",
+          "hedge_fund"
+        ],
+        "exclude_role_keywords": [
+          "model validation",
+          "software engineer",
+          "business intelligence",
+          "sales",
+          "operations"
+        ],
+        "inherited_hard_constraints": [
+          "target_seniority: early-career / analyst-level fit",
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "UBS model validation background",
+          "VaR / ES experience",
+          "scenario / stress testing",
+          "sensitivity analysis on risk drivers",
+          "derivatives and fixed income exposure",
+          "Python/R and SQL for analytics"
+        ]
+      },
+      {
+        "lane_id": "valuation_control_ipv",
+        "workstream_id": "valuation_control_ipv",
+        "query_seeds": [
+          "valuation control analyst New York",
+          "independent price verification analyst New York",
+          "IPV analyst fixed income derivatives New York",
+          "product control analyst valuation New York",
+          "trade valuation analyst bank New York"
+        ],
+        "budget_share": 0.25,
+        "target_company_types": [
+          "bank",
+          "broker_dealer",
+          "asset_manager",
+          "prime_broker"
+        ],
+        "exclude_role_keywords": [
+          "quant developer",
+          "portfolio manager",
+          "sales",
+          "audit",
+          "tax"
+        ],
+        "inherited_hard_constraints": [
+          "target_seniority: early-career / analyst-level fit",
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "derivatives and fixed income experience",
+          "CDS exposure",
+          "Bloomberg usage",
+          "analytical review of risk drivers and residuals",
+          "model validation experience with control and diagnostics workflows"
+        ]
+      },
+      {
+        "lane_id": "product_control_pnl",
+        "workstream_id": "product_control_pnl",
+        "query_seeds": [
+          "product control analyst P&L reporting New York",
+          "PnL analyst derivatives fixed income New York",
+          "product controller analyst bank New York",
+          "P&L explain analyst New York finance",
+          "trade support P&L analyst New York"
+        ],
+        "budget_share": 0.18,
+        "target_company_types": [
+          "bank",
+          "broker_dealer",
+          "asset_manager"
+        ],
+        "exclude_role_keywords": [
+          "fund accounting",
+          "audit",
+          "tax",
+          "business analyst",
+          "software engineer"
+        ],
+        "inherited_hard_constraints": [
+          "target_seniority: early-career / analyst-level fit",
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "PnL decomposition experience",
+          "sensitivity analysis on risk drivers",
+          "derivatives and fixed income domain knowledge",
+          "Python/R and SQL analytics",
+          "model review / diagnostics workflow"
+        ]
+      },
+      {
+        "lane_id": "risk_analytics_automation",
+        "workstream_id": "risk_analytics_automation",
+        "query_seeds": [
+          "risk analytics analyst Python SQL New York",
+          "risk automation analyst stress testing New York",
+          "risk reporting automation analyst finance New York",
+          "quant risk analyst model monitoring New York",
+          "analytics analyst market risk automation New York"
+        ],
+        "budget_share": 0.17,
+        "target_company_types": [
+          "bank",
+          "asset_manager",
+          "hedge_fund",
+          "broker_dealer"
+        ],
+        "exclude_role_keywords": [
+          "data engineer",
+          "machine learning engineer",
+          "software engineer",
+          "pure BI",
+          "marketing analytics"
+        ],
+        "inherited_hard_constraints": [
+          "target_seniority: early-career / analyst-level fit",
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "Python/R challenger models",
+          "automated residual diagnostics",
+          "backtesting and stability analysis",
+          "SQL and Excel workflow automation",
+          "Git and BI tool familiarity"
+        ]
+      },
+      {
+        "lane_id": "structured_credit_risk",
+        "workstream_id": "structured_credit_risk",
+        "query_seeds": [
+          "credit risk analyst rating migration New York",
+          "structured credit analyst New York",
+          "credit portfolio risk analyst PD New York",
+          "fixed income credit risk analytics New York",
+          "credit model risk analyst New York"
+        ],
+        "budget_share": 0.1,
+        "target_company_types": [
+          "bank",
+          "asset_manager",
+          "broker_dealer",
+          "credit_fund"
+        ],
+        "exclude_role_keywords": [
+          "consumer credit",
+          "collections",
+          "loan servicing",
+          "retail banking",
+          "mortgage operations"
+        ],
+        "inherited_hard_constraints": [
+          "target_seniority: early-career / analyst-level fit",
+          "max_years_experience: 3",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "CDS experience",
+          "PD / rating migration work",
+          "fixed income exposure",
+          "stress PD and issuer default loss review",
+          "model validation across credit risk use cases"
+        ]
+      }
+    ],
+    "source_strategy": {
+      "prefer_sources": [
+        "Schonfeld Greenhouse ATS board",
+        "NYC Greenhouse boards",
+        "NYC Lever boards",
+        "NYC Ashby boards",
+        "additional NYC buy-side career pages",
+        "additional NYC bank career pages"
+      ],
+      "avoid_sources": []
+    },
+    "translator_notes": {
+      "assumptions": [
+        "The profile's New York Only constraint was treated as a hard location constraint.",
+        "Because no explicit target role instruction was provided, the intent was classified as gap_fill_discovery based on strategy_context coverage gaps.",
+        "Jersey City was retained as a preferred commuting location because it appears in product defaults, but New York city-only was preserved as the hard constraint.",
+        "Target seniority was inferred from 3 years of experience and the profile's analyst-oriented background."
+      ],
+      "missing_information": [
+        "No explicit user role preference beyond the profile's target_workstreams and target_roles.",
+        "No explicit industry exclusions were provided.",
+        "No explicit compensation, work authorization, or remote preference beyond product defaults.",
+        "No workstream taxonomy was loaded, so workstream_id mapping is limited to strategy/context labels."
+      ],
+      "translator_version": "1.0.0"
+    },
+    "assertions": {
+      "intent_kind == profile_based_exploration": false,
+      "at least 2 lanes": true,
+      "total seeds > 3": true,
+      "no generic career advice seeds (e.g. 'jobs', 'careers')": true
+    },
+    "all_passed": false
+  },
+  {
+    "case_id": "case9_remote_only",
+    "user_instruction": "remote only",
+    "intent_kind": "directed_discovery",
+    "num_lanes": 5,
+    "hard_constraints": [
+      "location: New York only",
+      "remote: only"
+    ],
+    "negative_preferences": [
+      "deprioritise unrelated general data/BI roles",
+      "deprioritise senior roles requiring substantially more than 3 years experience"
+    ],
+    "location_constraints": {
+      "preferred_locations": [
+        "New York"
+      ],
+      "remote_policy": "remote_only"
+    },
+    "seniority_constraints": {
+      "target_levels": [
+        "analyst",
+        "associate",
+        "junior_associate"
+      ],
+      "max_years_experience": 3
+    },
+    "lanes": [
+      {
+        "lane_id": "market_risk_exposure",
+        "workstream_id": "market_risk_exposure",
+        "query_seeds": [
+          "remote market risk analyst New York",
+          "remote market risk exposure analyst New York",
+          "remote stress testing analyst finance New York",
+          "remote VaR analyst New York",
+          "remote risk analytics analyst market risk New York"
+        ],
+        "budget_share": 0.45,
+        "target_company_types": [
+          "bank",
+          "broker_dealer",
+          "asset_manager",
+          "hedge_fund"
+        ],
+        "exclude_role_keywords": [
+          "pure model validation",
+          "software engineer",
+          "general data analyst"
+        ],
+        "inherited_hard_constraints": [
+          "remote: only",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "3 years experience in UBS model validation",
+          "VaR/ES, scenario/stress testing, sensitivity analysis",
+          "PnL decomposition and risk-driver analysis",
+          "derivatives, fixed income, CDS exposure",
+          "Python/R, SQL, Bloomberg for risk analytics"
+        ]
+      },
+      {
+        "lane_id": "valuation_control_ipv",
+        "workstream_id": "valuation_control_ipv",
+        "query_seeds": [
+          "remote valuation control analyst New York",
+          "remote IPV analyst New York",
+          "remote independent price verification analyst New York",
+          "remote valuation analyst derivatives New York",
+          "remote product control valuation analyst New York"
+        ],
+        "budget_share": 0.25,
+        "target_company_types": [
+          "bank",
+          "broker_dealer",
+          "asset_manager"
+        ],
+        "exclude_role_keywords": [
+          "tax",
+          "audit only",
+          "software engineer",
+          "equity research"
+        ],
+        "inherited_hard_constraints": [
+          "remote: only",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "derivatives and fixed income domain exposure",
+          "sensitivity analysis and model review workflow",
+          "Bloomberg and Python/R analytical toolkit",
+          "risk and valuation-focused quantitative work"
+        ]
+      },
+      {
+        "lane_id": "product_control_pnl",
+        "workstream_id": null,
+        "query_seeds": [
+          "remote product control analyst New York",
+          "remote p and l reporting analyst New York",
+          "remote pnl control analyst finance New York",
+          "remote product control derivatives New York",
+          "remote finance control analyst market risk New York"
+        ],
+        "budget_share": 0.15,
+        "target_company_types": [
+          "bank",
+          "broker_dealer",
+          "asset_manager"
+        ],
+        "exclude_role_keywords": [
+          "bookkeeper",
+          "accounts payable",
+          "tax",
+          "general accounting"
+        ],
+        "inherited_hard_constraints": [
+          "remote: only",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "PnL decomposition experience",
+          "sensitivity analysis on risk drivers",
+          "fixed income and derivatives knowledge",
+          "UBS model validation in a market-risk context"
+        ]
+      },
+      {
+        "lane_id": "risk_analytics_automation",
+        "workstream_id": null,
+        "query_seeds": [
+          "remote risk analytics analyst New York",
+          "remote quantitative risk analyst New York",
+          "remote risk reporting analyst New York",
+          "remote model monitoring analyst New York",
+          "remote risk analytics automation Python SQL New York"
+        ],
+        "budget_share": 0.1,
+        "target_company_types": [
+          "bank",
+          "asset_manager",
+          "broker_dealer",
+          "hedge_fund"
+        ],
+        "exclude_role_keywords": [
+          "marketing analytics",
+          "sales analytics",
+          "product analytics",
+          "software engineer"
+        ],
+        "inherited_hard_constraints": [
+          "remote: only",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "Python/R automation for residual diagnostics, backtesting, stability analysis",
+          "SQL and Git usage",
+          "Tableau/Power BI reporting skills",
+          "model risk management and challenger model development"
+        ]
+      },
+      {
+        "lane_id": "structured_credit",
+        "workstream_id": null,
+        "query_seeds": [
+          "remote structured credit analyst New York",
+          "remote credit risk analyst structured products New York",
+          "remote credit analytics analyst New York",
+          "remote fixed income risk analyst New York",
+          "remote credit modeling analyst New York"
+        ],
+        "budget_share": 0.05,
+        "target_company_types": [
+          "bank",
+          "asset_manager",
+          "hedge_fund",
+          "broker_dealer"
+        ],
+        "exclude_role_keywords": [
+          "loan officer",
+          "retail credit",
+          "collections",
+          "consumer lending"
+        ],
+        "inherited_hard_constraints": [
+          "remote: only",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "CDS exposure",
+          "fixed income experience",
+          "PD/rating migration and stress PD",
+          "scenario/stress testing",
+          "quantitative methods including time series, factor models, and ML"
+        ]
+      }
+    ],
+    "source_strategy": {
+      "prefer_sources": [
+        "Schonfeld Greenhouse ATS board",
+        "NYC Greenhouse boards",
+        "NYC Lever boards",
+        "NYC Ashby boards",
+        "additional NYC buy-side and bank career pages"
+      ],
+      "avoid_sources": []
+    },
+    "translator_notes": {
+      "assumptions": [
+        "'remote only' was interpreted as remote-first or fully remote roles that are finance-relevant and available to a New York-based search.",
+        "Location constraint was preserved as New York only; Jersey City from product defaults was not added because the user explicitly narrowed the search.",
+        "Current profile title 'UBS model validation' was treated as evidence for adjacent market risk, valuation control, and P&L/control roles rather than pure model validation only.",
+        "No workstream taxonomy was loaded, so lane workstream mapping was inferred from the strategy_context labels and candidate target_workstreams."
+      ],
+      "missing_information": [
+        "No explicit seniority preference beyond the implied 3 years of experience.",
+        "No explicit company-type exclusions or target firms from the user.",
+        "No loaded workstream taxonomy to map lanes to canonical taxonomy IDs.",
+        "No compensation, visa, or industry exclusions were provided."
+      ],
+      "translator_version": "1.0.0"
+    },
+    "assertions": {
+      "remote_policy == remote_only in location_constraints": true,
+      "remote mentioned in hard_constraints OR location_constraints": true,
+      "at least one lane": true
+    },
+    "all_passed": true
+  },
+  {
+    "case_id": "case10_strategy_avoid_workday",
+    "user_instruction": "找 market risk analytics 岗位",
+    "intent_kind": "directed_discovery",
+    "num_lanes": 4,
+    "hard_constraints": [
+      "location: New York only",
+      "target_role_type: market risk analytics"
+    ],
+    "negative_preferences": [
+      "deprioritise pure model validation roles unless they clearly include market risk analytics responsibilities",
+      "deprioritise roles centered on unrelated BI/reporting without risk analytics content",
+      "deprioritise non-NYC roles"
+    ],
+    "location_constraints": {
+      "preferred_locations": [
+        "New York",
+        "Jersey City"
+      ],
+      "remote_policy": "allow_if_finance_relevant"
+    },
+    "seniority_constraints": {
+      "target_levels": [
+        "analyst",
+        "associate"
+      ],
+      "max_years_experience": 3
+    },
+    "lanes": [
+      {
+        "lane_id": "market_risk_exposure",
+        "workstream_id": "market_risk_exposure",
+        "query_seeds": [
+          "market risk analyst New York",
+          "market risk analytics New York",
+          "risk analytics analyst stress testing New York",
+          "VaR analyst New York",
+          "market risk exposure analyst NYC",
+          "scenario stress testing analyst New York",
+          "risk reporting analyst market risk New York"
+        ],
+        "budget_share": 0.6,
+        "target_company_types": [
+          "bank",
+          "broker_dealer",
+          "asset_manager",
+          "buy_side_fund"
+        ],
+        "exclude_role_keywords": [
+          "software engineer",
+          "pure data analyst",
+          "business intelligence",
+          "operations analyst",
+          "model validation only"
+        ],
+        "inherited_hard_constraints": [
+          "target_role_type: market risk analytics",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "3 years of experience",
+          "UBS model validation background",
+          "VaR / ES, scenario-stress testing, sensitivity analysis",
+          "Quantitative Analyst - Model Risk Management project covering VaR forecast, PnL decomposition, stress testing, and backtesting",
+          "Python/R, SQL, Bloomberg, Tableau/Power BI",
+          "Fixed income, derivatives, CDS, PD/rating migration"
+        ]
+      },
+      {
+        "lane_id": "product_control_pnl",
+        "workstream_id": null,
+        "query_seeds": [
+          "product control analyst New York",
+          "P&L reporting analyst New York",
+          "PnL risk analyst NYC",
+          "market risk P&L analyst New York",
+          "valuation and P&L control analyst New York",
+          "front office control analyst market risk New York"
+        ],
+        "budget_share": 0.2,
+        "target_company_types": [
+          "bank",
+          "broker_dealer",
+          "asset_manager"
+        ],
+        "exclude_role_keywords": [
+          "accounting",
+          "financial reporting only",
+          "controller general ledger",
+          "tax",
+          "audit"
+        ],
+        "inherited_hard_constraints": [
+          "target_role_type: market risk analytics",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "VaR forecast and PnL decomposition experience",
+          "Sensitivity analysis on risk drivers",
+          "Fixed income and derivatives domain exposure",
+          "Python/R and SQL for analytical automation"
+        ]
+      },
+      {
+        "lane_id": "valuation_control_ipv",
+        "workstream_id": null,
+        "query_seeds": [
+          "valuation control analyst New York",
+          "IPV analyst New York",
+          "independent price verification analyst NYC",
+          "valuation analyst derivatives New York",
+          "pricing control analyst fixed income New York",
+          "valuation risk analyst New York"
+        ],
+        "budget_share": 0.15,
+        "target_company_types": [
+          "bank",
+          "broker_dealer",
+          "asset_manager"
+        ],
+        "exclude_role_keywords": [
+          "fund accounting",
+          "reconciliation only",
+          "back office operations",
+          "custody",
+          "settlements"
+        ],
+        "inherited_hard_constraints": [
+          "target_role_type: market risk analytics",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "Derivatives and fixed income domain experience",
+          "Bloomberg and Excel usage",
+          "Python/R automation and analytical workflows",
+          "Risk driver sensitivity analysis"
+        ]
+      },
+      {
+        "lane_id": "risk_analytics_automation",
+        "workstream_id": null,
+        "query_seeds": [
+          "risk analytics automation New York",
+          "risk reporting automation analyst New York",
+          "market risk data analyst New York",
+          "risk monitoring analyst Python New York",
+          "quantitative risk analyst SQL Python New York",
+          "risk analytics developer New York"
+        ],
+        "budget_share": 0.05,
+        "target_company_types": [
+          "bank",
+          "broker_dealer",
+          "asset_manager",
+          "buy_side_fund"
+        ],
+        "exclude_role_keywords": [
+          "software engineer",
+          "data engineer only",
+          "pure BI developer",
+          "product analytics",
+          "marketing analytics"
+        ],
+        "inherited_hard_constraints": [
+          "target_role_type: market risk analytics",
+          "location: New York only"
+        ],
+        "evidence_from_profile": [
+          "Python/R, SQL, Git",
+          "Automated residual diagnostics, backtesting, and stability analysis",
+          "Challenger model development in Python/R",
+          "Tableau/Power BI for analytics workflows"
+        ]
+      }
+    ],
+    "source_strategy": {
+      "prefer_sources": [
+        "Schonfeld Greenhouse ATS board",
+        "NYC Greenhouse boards",
+        "NYC Lever boards",
+        "NYC Ashby boards",
+        "additional NYC buy-side and bank career pages"
+      ],
+      "avoid_sources": [
+        "workday.com",
+        "swissre.com"
+      ]
+    },
+    "translator_notes": {
+      "assumptions": [
+        "The user's Chinese instruction was interpreted as a request for market risk analytics roles, not a request for other risk functions.",
+        "Jersey City is kept as a preferred location because it appears in product defaults, but the user hard constraint was interpreted as New York metro/NYC-area search intent with New York as the only mandatory geography.",
+        "Model validation experience was treated as adjacent evidence for market risk analytics, but not as a primary target unless the posting clearly includes market risk responsibilities."
+      ],
+      "missing_information": [
+        "No explicit preference was provided for bank versus buy-side versus hedge fund employer type.",
+        "No explicit seniority target beyond what can be inferred from 3 years of experience.",
+        "No explicit exclusion list was provided for valuation control or IPV, so these were treated as adjacent lanes rather than exclusions."
+      ],
+      "translator_version": "1.0.0"
+    },
+    "assertions": {
+      "workday in source_strategy.avoid_sources": true,
+      "user target lanes not suppressed (market risk in seeds)": true,
+      "at least one lane": true
+    },
+    "all_passed": true
+  }
+]

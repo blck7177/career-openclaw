@@ -134,6 +134,58 @@ def get_profile(
     return json.loads(profile_path.read_text(encoding="utf-8"))
 
 
+def update_profile(
+    ctx: RequestContext,
+    profile_id: str,
+    profile_data: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Update an existing candidate profile in-place.
+
+    Merges the supplied fields onto the persisted profile, preserving
+    candidate_profile_id, workspace_id, and created_at.  profile_version is
+    refreshed to FIT_PROFILE_VERSION so that stale Fit Report caches are
+    automatically invalidated after an edit.
+
+    Returns the updated profile dict.
+
+    Raises:
+        ValueError — if profile_id does not exist, belongs to a different
+            workspace, or the merged data fails schema validation.
+    """
+    data_root = get_data_root()
+    store = MetadataStore.from_data_root(data_root)
+    store.init_schema()
+
+    row = store.get_candidate_profile(profile_id)
+    if row is None:
+        raise ValueError(f"Profile not found: {profile_id}")
+
+    profile_path = Path(row["profile_path"])
+    if not profile_path.exists():
+        raise ValueError(f"Profile file missing on disk: {profile_id}")
+
+    existing = json.loads(profile_path.read_text(encoding="utf-8"))
+    if existing.get("workspace_id") != ctx.workspace_id:
+        raise ValueError(f"Profile not found: {profile_id}")
+
+    # Merge: start from existing, overlay incoming fields, lock immutable keys.
+    merged = {**existing, **profile_data}
+    merged["candidate_profile_id"] = existing["candidate_profile_id"]
+    merged["workspace_id"] = existing["workspace_id"]
+    merged["created_at"] = existing["created_at"]
+    merged["profile_version"] = FIT_PROFILE_VERSION
+
+    schema = _load_schema()
+    try:
+        jsonschema.validate(instance=merged, schema=schema)
+    except jsonschema.ValidationError as exc:
+        raise ValueError(f"Profile validation failed: {exc.message}") from exc
+
+    profile_path.write_text(json.dumps(merged, ensure_ascii=False, indent=2), encoding="utf-8")
+    return merged
+
+
 def list_profiles(
     ctx: RequestContext,
 ) -> list[dict[str, Any]]:
