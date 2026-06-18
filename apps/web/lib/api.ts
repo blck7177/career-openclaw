@@ -410,13 +410,33 @@ export async function getAgentRun(
 }
 
 // ---------------------------------------------------------------------------
-// User-facing discovery runs
+// User-facing discovery runs — v2
 // ---------------------------------------------------------------------------
+
+export type SearchMode = "auto" | "directed_discovery" | "profile_based_exploration" | "gap_fill_discovery";
+export type SearchDepth = "fast" | "balanced" | "deep";
+
+export interface SearchParams {
+  location?: string[];
+  remote_policy?: "on-site" | "hybrid" | "remote" | "flexible";
+  seniority?: string[];
+  max_years_experience?: number | null;
+  workstreams?: string[];
+  company_types?: string[];
+  exclusions?: string[];
+}
 
 export interface DiscoveryRunRequest {
   profile_id: string;
+  // v2 structured fields
+  search_mode?: SearchMode;
+  search_params?: SearchParams;
+  target_new_jobs?: number;
+  search_depth?: SearchDepth;
+  additional_instruction?: string;
+  // v1 legacy fields (still accepted)
   user_instruction?: string;
-  requested_mode?: "auto" | "directed_discovery" | "profile_based_exploration" | "gap_fill_discovery";
+  requested_mode?: SearchMode;
   max_queries?: number;
   max_pages?: number;
 }
@@ -426,6 +446,37 @@ export interface DiscoveryRunResponse {
   run_id: string;
   message: string;
   requested_mode: string;
+}
+
+/** Result shape returned by the ObjectiveController (FinalSearchResult.to_dict) */
+export interface DiscoveryRunResult {
+  objective_id?: string;
+  target_new_jobs?: number;
+  attempts_run?: number;
+  objective_status?: "met" | "partially_met" | "not_met";
+  objective_reason?: string;
+  new_jobs_inserted?: number;
+  existing_jobs_updated?: number;
+  possible_duplicates?: number;
+  jobs_failed?: number;
+  candidates_captured?: number;
+  queries_run?: number;
+  duration_seconds?: number;
+  attempt_summaries?: Array<{
+    attempt_number: number;
+    session_id: string;
+    new_jobs_inserted: number;
+    existing_jobs_updated: number;
+    possible_duplicates: number;
+    jobs_failed: number;
+    candidates_captured: number;
+    queries_run: number;
+    duration_seconds: number;
+  }>;
+  // Backward-compat
+  jobs_saved?: number;
+  session_id?: string;
+  run_id?: string;
 }
 
 export async function enqueueDiscoveryRun(

@@ -14,16 +14,19 @@ Legacy (operator) path — triggered by POST /api/operator/agent-runs:
     max_pages     int   Hard fetch-page budget       (optional, default 40)
 
 New (user) path — triggered by POST /api/discovery-runs:
-    profile_id       str   candidate_profile_id from profiles table
-    user_instruction str   Raw user instruction (may be empty for profile-based exploration)
-    requested_mode   str   "auto" | "directed_discovery" | "profile_based_exploration"
-                           | "gap_fill_discovery"  (optional, default "auto")
-    max_queries      int   Hard query budget            (optional, default 30)
-    max_pages        int   Hard fetch-page budget       (optional, default 40)
+    profile_id          str   candidate_profile_id from profiles table
+    source_workspace_id str   workspace that owns the profile (for multi-workspace safety)
+    user_instruction    str   Raw user instruction (may be empty for profile-based exploration)
+    requested_mode      str   "auto" | "directed_discovery" | "profile_based_exploration"
+                              | "gap_fill_discovery"  (optional, default "auto")
+    target_new_jobs     int   Objective: number of new jobs to insert   (optional, default 10)
+    max_queries         int   Total query budget split across attempts  (optional, default 30)
+    max_pages           int   Total fetch-page budget                   (optional, default 40)
+    search_params       dict  Structured search parameters              (optional)
 
-The new path runs the Intent Translator before invoking the discovery agent,
-producing a structured DiscoveryIntent written into the session artifacts
-(translator_input.json + discovery_intent.json) for auditability.
+The new path runs the Intent Translator to produce a DiscoveryIntent, then
+delegates to the ObjectiveController which runs up to 2 attempts and aggregates
+results into a FinalSearchResult.
 """
 
 from __future__ import annotations
@@ -38,17 +41,21 @@ from career_intelligence.app_state.workspace_paths import (
     get_repo_root,
     get_workspace_paths,
 )
+from career_intelligence.llm_client import make_client
 from career_intelligence.services import task_service
 from career_intelligence.services.agent_service import (
     AgentRunError,
     SearchValidationError,
     _build_catalog_context,
     _build_strategy_context,
-    run_discovery_session,
 )
 from career_intelligence.services.intent_translator import (
     IntentTranslatorError,
     translate as translate_intent,
+)
+from career_intelligence.objective_controller import (
+    ObjectiveController,
+    SearchObjective,
 )
 from career_intelligence.search_session import session_dir
 
@@ -56,7 +63,7 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# New path (profile_id + user_instruction)
+# New path (profile_id + user_instruction) — ObjectiveController
 # ---------------------------------------------------------------------------
 
 
@@ -65,10 +72,10 @@ def _handle_new_path(
     payload: dict[str, Any],
 ) -> dict[str, Any]:
     """
-    Resolve profile, run Intent Translator, then call run_discovery_session
-    with the resulting DiscoveryIntent.
+    Resolve profile, run Intent Translator, then run ObjectiveController
+    (up to 2 attempts) to meet the target_new_jobs objective.
 
-    Returns the result dict from run_discovery_session.
+    Returns a FinalSearchResult dict.
     Raises on unrecoverable errors (caller writes task failure).
     """
     from career_intelligence.services.profile_service import get_profile
@@ -76,40 +83,35 @@ def _handle_new_path(
     profile_id: str = payload["profile_id"]
     user_instruction: str = payload.get("user_instruction", "")
     requested_mode: str = payload.get("requested_mode", "auto")
-    max_queries: int = int(payload.get("max_queries", 30))
-    max_pages: int = int(payload.get("max_pages", 40))
+    target_new_jobs: int = int(payload.get("target_new_jobs", 10))
+    total_queries: int = int(payload.get("max_queries", 30))
+    total_pages: int = int(payload.get("max_pages", 40))
 
     catalog_id = get_catalog_workspace_id()
     workspace_root = get_workspace_paths(catalog_id).root
     repo_root = get_repo_root()
 
-    # 1. Resolve candidate profile from the workspace it was created in.
-    #    Profiles are workspace-scoped; we look up using the catalog workspace
-    #    context since discovery runs write to the catalog workspace.
-    ctx = RequestContext(
-        workspace_id=catalog_id,
+    # 1. Resolve candidate profile from its source workspace.
+    source_workspace_id = payload.get("source_workspace_id", catalog_id)
+    profile_ctx = RequestContext(
+        workspace_id=source_workspace_id,
         user_id="worker",
         session_id=task_id,
     )
-    profile = get_profile(ctx, profile_id)
+    profile = get_profile(profile_ctx, profile_id)
     if profile is None:
         raise ValueError(f"Candidate profile not found: {profile_id}")
 
     logger.info(
-        "search_run task %s (new path): profile=%s instruction=%.80s mode=%s",
-        task_id, profile_id, user_instruction, requested_mode,
+        "search_run task %s (new path): profile=%s instruction=%.80s mode=%s target=%d",
+        task_id, profile_id, user_instruction, requested_mode, target_new_jobs,
     )
 
-    # 2. Build catalog and strategy context (same as agent_service does internally).
+    # 2. Build catalog and strategy context.
     catalog_context = _build_catalog_context(catalog_id, workspace_root)
     strategy_context = _build_strategy_context(workspace_root)
 
     # 3. Run Intent Translator to produce a structured DiscoveryIntent.
-    #    We pass session_root=None here because we don't have a session_id yet;
-    #    the translator artifacts will be persisted by run_discovery_session's
-    #    session directory. We call translate() without session_root so it
-    #    returns the intent, and then persist from the handler after session creation.
-    #    NOTE: session_root persistence is best-effort (warn, never fail).
     try:
         intent = translate_intent(
             profile=profile,
@@ -119,7 +121,7 @@ def _handle_new_path(
             workspace_root=workspace_root,
             repo_root=repo_root,
             requested_mode=requested_mode,
-            session_root=None,  # will persist after session is created below
+            session_root=None,
         )
     except IntentTranslatorError as exc:
         raise RuntimeError(f"Intent translation failed: {exc}") from exc
@@ -129,8 +131,7 @@ def _handle_new_path(
         task_id, intent.get("intent_kind", "?"), len(intent.get("search_lanes", [])),
     )
 
-    # 4. Use profile summary from profile fields as the search_brief for the agent
-    #    (provides human-readable fallback if agent reads the old search_request fields).
+    # 4. Build search_brief from profile fields.
     profile_summary_parts: list[str] = []
     if profile.get("current_background"):
         profile_summary_parts.append(profile["current_background"])
@@ -144,27 +145,68 @@ def _handle_new_path(
         )
     search_brief = user_instruction or " | ".join(profile_summary_parts) or "profile-based discovery"
 
-    # 5. Run the full discovery session with the structured intent.
-    result = run_discovery_session(
+    # 5. Build SearchObjective from intent + request params.
+    #    Extract hard constraints from search_params if present (Phase 3 path)
+    #    or fall back to whatever the intent translator produced.
+    search_params = payload.get("search_params") or {}
+    hard_constraints: dict[str, Any] = {}
+    if search_params:
+        if search_params.get("location"):
+            hard_constraints["location"] = search_params["location"]
+        if search_params.get("seniority"):
+            hard_constraints["seniority"] = search_params["seniority"]
+        if search_params.get("max_years_experience") is not None:
+            hard_constraints["max_years_experience"] = search_params["max_years_experience"]
+        if search_params.get("workstreams"):
+            hard_constraints["workstreams"] = search_params["workstreams"]
+        if search_params.get("exclusions"):
+            hard_constraints["exclusions"] = search_params["exclusions"]
+
+    soft_preferences: dict[str, Any] = {}
+    if search_params.get("company_types"):
+        soft_preferences["company_types"] = search_params["company_types"]
+    if search_params.get("remote_policy"):
+        soft_preferences["remote_policy"] = search_params["remote_policy"]
+
+    objective = SearchObjective.from_intent_and_request(
+        objective_id=task_id,
+        target_new_jobs=target_new_jobs,
+        total_queries=total_queries,
+        total_pages=total_pages,
+        max_attempts=2,
+        discovery_intent=intent,
+        search_mode=requested_mode,
+        additional_instruction=user_instruction,
+        hard_constraints=hard_constraints or None,
+        soft_preferences=soft_preferences or None,
+    )
+
+    logger.info(
+        "search_run task %s: objective created target=%d a1=%dq/%dp a2=%dq/%dp",
+        task_id, objective.target_new_jobs,
+        objective.attempt_1_queries, objective.attempt_1_pages,
+        objective.attempt_2_queries, objective.attempt_2_pages,
+    )
+
+    # 6. Run ObjectiveController (multi-attempt).
+    llm_client = make_client()
+    controller = ObjectiveController(objective, llm_client)
+    final_result = controller.run(
         profile_name=profile_id,
         search_brief=search_brief,
-        mode="exploratory",
-        max_queries=max_queries,
-        max_pages=max_pages,
         discovery_intent=intent,
     )
 
-    # 6. Best-effort: persist translator artifacts into the session directory
-    #    now that we have the session_id from the result.
-    session_id = result.get("session_id")
-    if session_id:
+    # 7. Best-effort: persist translator artifacts into the last session directory.
+    last_session_id = final_result.last_session_id
+    if last_session_id:
         try:
-            s_root = session_dir(workspace_root, session_id)
+            s_root = session_dir(workspace_root, last_session_id)
             from career_intelligence.services.intent_translator import (
                 build_input_envelope,
                 persist_artifacts,
+                _load_workstream_taxonomy,
             )
-            from career_intelligence.services.intent_translator import _load_workstream_taxonomy
             taxonomy = _load_workstream_taxonomy(repo_root)
             envelope = build_input_envelope(
                 profile=profile,
@@ -181,7 +223,7 @@ def _handle_new_path(
                 task_id, exc,
             )
 
-    return result
+    return final_result.to_dict()
 
 
 # ---------------------------------------------------------------------------
@@ -241,11 +283,12 @@ def handle_search_run(task: dict[str, Any]) -> None:
             task_service.update_run_status(run_id, "completed")
         task_service.complete_task(task_id, result=result)
         logger.info(
-            "search_run task %s complete: session=%s queries=%d saved=%d",
+            "search_run task %s complete: session=%s queries=%d inserted=%d updated=%d",
             task_id,
             result.get("session_id"),
             result.get("queries_run", 0),
-            result.get("jobs_saved", 0),
+            result.get("new_jobs_inserted", 0),
+            result.get("existing_jobs_updated", 0),
         )
 
     except SearchValidationError as exc:

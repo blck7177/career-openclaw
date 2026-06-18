@@ -37,6 +37,47 @@
         "discovery_intent": {
           "type": "object",
           "description": "Structured search contract from the Intent Translator. Empty object when triggered via the legacy operator endpoint. Non-empty for user-facing /api/discovery-runs."
+        },
+        "attempt_context": {
+          "type": "object",
+          "description": "Per-attempt context injected by the Objective Controller (new path only). Absent for legacy operator runs. When present, the agent MUST: (1) avoid URLs and companies listed in seen_urls/seen_companies; (2) follow the pivot_hint strategy for this attempt.",
+          "properties": {
+            "attempt_number": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Which attempt this is (1-indexed)."
+            },
+            "max_attempts": {
+              "type": "integer",
+              "description": "Total max attempts for this objective."
+            },
+            "target_new_jobs": {
+              "type": "integer",
+              "description": "Total new jobs the objective aims to insert."
+            },
+            "remaining_target": {
+              "type": "integer",
+              "description": "Remaining new jobs still needed after previous attempts."
+            },
+            "seen_companies": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Company names already captured in previous attempts. Avoid searching these again unless the pivot_hint says otherwise."
+            },
+            "seen_urls": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Job posting URLs already processed in previous attempts. Do not re-capture."
+            },
+            "previous_failure_summary": {
+              "type": ["string", "null"],
+              "description": "Human-readable summary of why the previous attempt did not meet the objective."
+            },
+            "pivot_hint": {
+              "type": ["string", "null"],
+              "description": "LLM-generated strategy adjustment for this attempt. Follow it as a priority directive over the baseline DiscoveryIntent lanes."
+            }
+          }
         }
       }
     },

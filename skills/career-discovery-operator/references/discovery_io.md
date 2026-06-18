@@ -147,6 +147,46 @@ lane: exposure_management — exhausted (3 queries, 0 candidates, sources: X/Y/Z
 
 `discovery_intent` 为空 `{}` 或缺失时，完全忽略本节规则，回退到自主 strategy 模式（参考 `discovery_moves.md`）。
 
+---
+
+## Executing with attempt_context (multi-attempt runs)
+
+当 `search_request.attempt_context` 非空时，表示这是一个多轮 objective run 的 **第 2 轮 attempt**。
+
+### 核心规则
+
+**1. attempt_context 是当前轮的执行调整指令，优先级高于 discovery_intent lanes**
+
+```json
+{
+  "attempt_number": 2,
+  "max_attempts": 2,
+  "target_new_jobs": 10,
+  "remaining_target": 6,
+  "seen_companies": ["JPMorgan", "Goldman Sachs", "BlackRock"],
+  "seen_urls": ["https://...", "https://..."],
+  "previous_failure_summary": "High duplicate rate: 8/10 candidates already in catalog.",
+  "pivot_hint": "Avoid the 3 seen companies. Switch to direct ATS boards (Greenhouse/Lever/Ashby) targeting mid-size asset managers and insurance firms not yet covered."
+}
+```
+
+**2. `seen_companies` 和 `seen_urls` 是禁区**
+
+- 不把 `seen_urls` 里的 URL 加入 candidate pool（即使搜索结果里出现了）
+- 不把 `seen_companies` 作为主要搜索目标（除非 `pivot_hint` 明确指示要重新覆盖某家公司）
+
+**3. `pivot_hint` 是策略调整指令，必须执行**
+
+`pivot_hint` 是 Follow-up Planner 根据第 1 轮失败原因生成的具体调整方案。你必须将其作为本轮策略的核心指令。
+
+**4. `remaining_target` 是本轮的目标**
+
+本轮只需要找到 `remaining_target` 个数据库中没有的新岗位。不要继续收集已被上一轮覆盖过的公司的岗位（除非 pivot_hint 指示）。
+
+**5. attempt_context 不存在时，按正常 discovery_intent 逻辑执行**
+
+`attempt_context` 缺失或为空时，这是第 1 轮 attempt，完全按照 `discovery_intent` + `strategy_context` 正常执行。
+
 ### discovery_intent 字段速查
 
 | 字段 | 你应该怎么用 |

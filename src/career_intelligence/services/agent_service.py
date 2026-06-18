@@ -218,6 +218,7 @@ def _search_input_spec(
     profile_summary: str = "",
     repo_root: Path | None = None,
     discovery_intent: dict[str, Any] | None = None,
+    attempt_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Rich task spec for the autonomous discovery agent.
@@ -234,6 +235,9 @@ def _search_input_spec(
         When present, the agent uses it to allocate query budget across lanes
         and enforce hard constraints. When absent, the agent falls back to its
         autonomous strategy based on profile_name and search_brief.
+    attempt_context: per-attempt context from the Objective Controller. Present
+        only for multi-attempt runs (attempt 2+). The agent must avoid seen
+        companies/URLs and follow the pivot_hint.
     """
     source_context: dict[str, Any] = {}
     if repo_root is not None:
@@ -242,25 +246,16 @@ def _search_input_spec(
             "source_policy_path": str(repo_root / "configs" / "source_policy.yaml"),
         }
 
-    return {
+    spec: dict[str, Any] = {
         "session_id": session_id,
-        # The workspace the worker created the session in. The agent must pass
-        # this to every wrapper (--workspace-id) so its writes land in the same
-        # workspace, not the CLI default — see resolve_workspace_root().
         "workspace_id": workspace_id,
         "search_request": {
             "raw_user_request": search_brief,
             "profile_name": profile_name,
             "profile_summary": profile_summary,
-            # Structured search contract from Intent Translator. Non-empty when
-            # the run was triggered via POST /api/discovery-runs with a profile_id.
-            # Empty dict when triggered via the legacy operator endpoint.
             "discovery_intent": discovery_intent or {},
         },
-        # Database-derived: how many jobs already in catalog, recently-seen companies.
         "catalog_context": catalog_context or {},
-        # Reflect-produced: cross-run learnings. Agent should use these to avoid
-        # repeating failed queries/sources and to prioritise weak workstreams.
         "strategy_context": strategy_context or {},
         "source_context": source_context,
         "budget": {
@@ -273,6 +268,9 @@ def _search_input_spec(
             "discovery_notes": str(discovery_notes_path),
         },
     }
+    if attempt_context:
+        spec["search_request"]["attempt_context"] = attempt_context
+    return spec
 
 
 def _search_prompt(session_id: str, workspace_id: str, input_spec_path: Path) -> str:
@@ -392,6 +390,7 @@ def run_discovery_session(
     max_queries: int = 30,
     max_pages: int = 40,
     discovery_intent: dict[str, Any] | None = None,
+    attempt_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Drive a full OpenClaw discovery run (search → validate → process → reflect).
@@ -408,11 +407,15 @@ def run_discovery_session(
                            and uses it to allocate query budget across lanes and
                            enforce hard constraints. When None, the agent falls back
                            to autonomous strategy based on profile_name + search_brief.
+        attempt_context:   Per-attempt context from the Objective Controller.
+                           When provided (attempt 2+), includes seen_companies,
+                           seen_urls, and a pivot_hint for search adjustment.
 
     Returns:
         {session_id, run_id, turns_used, search_complete,
          queries_run, candidates_captured,
-         jobs_fetched, jobs_structured, jobs_saved, jobs_failed}
+         jobs_fetched, jobs_structured, jobs_saved,
+         new_jobs_inserted, existing_jobs_updated, possible_duplicates, jobs_failed}
 
     Raises:
         SearchValidationError  — agent produced 0 queries (fabrication detected)
@@ -470,6 +473,7 @@ def run_discovery_session(
             profile_summary=profile_summary,
             repo_root=repo_root,
             discovery_intent=discovery_intent,
+            attempt_context=attempt_context,
         ),
         input_spec_path=input_spec_path,
         run_log_path=run_log_path,
@@ -572,9 +576,10 @@ def run_discovery_session(
         config_root=repo_root,
     )
     logger.info(
-        "Pipeline complete: fetched=%d saved=%d failed=%d",
+        "Pipeline complete: fetched=%d inserted=%d updated=%d failed=%d",
         pipeline_result.get("jobs_fetched", 0),
-        pipeline_result.get("jobs_saved", 0),
+        pipeline_result.get("new_jobs_inserted", 0),
+        pipeline_result.get("existing_jobs_updated", 0),
         pipeline_result.get("jobs_failed", 0),
     )
 
@@ -603,7 +608,11 @@ def run_discovery_session(
         "candidates_captured": candidates_captured,
         "jobs_fetched": pipeline_result.get("jobs_fetched", 0),
         "jobs_structured": pipeline_result.get("jobs_structured", 0),
+        # jobs_saved kept for backward-compat; prefer the split counters below.
         "jobs_saved": pipeline_result.get("jobs_saved", 0),
+        "new_jobs_inserted": pipeline_result.get("new_jobs_inserted", 0),
+        "existing_jobs_updated": pipeline_result.get("existing_jobs_updated", 0),
+        "possible_duplicates": pipeline_result.get("possible_duplicates", 0),
         "jobs_failed": pipeline_result.get("jobs_failed", 0),
         "duration_seconds": pipeline_result.get("duration_seconds", 0),
     }

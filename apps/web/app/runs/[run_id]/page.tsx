@@ -90,12 +90,35 @@ export default async function RunDetailPage({ params }: PageProps) {
                 <CardTitle className="text-sm">Discovery Results</CardTitle>
               </CardHeader>
               <CardContent>
+                {/* Prefer split counters; fall back to jobs_saved for legacy runs */}
+                {(s as Record<string, unknown>)?.new_jobs_inserted != null ? (
+                  <>
+                    <StatRow
+                      label="New roles inserted"
+                      value={(s as Record<string, unknown>).new_jobs_inserted as number}
+                    />
+                    <StatRow
+                      label="Existing updated"
+                      value={(s as Record<string, unknown>).existing_jobs_updated as number}
+                    />
+                    {((s as Record<string, unknown>).possible_duplicates as number) > 0 && (
+                      <StatRow
+                        label="Possible duplicates"
+                        value={(s as Record<string, unknown>).possible_duplicates as number}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <StatRow label="Saved to DB" value={s?.jobs_saved} />
+                )}
                 <StatRow label="Candidates captured" value={s?.jobs_discovered} />
                 <StatRow label="Fetched" value={s?.jobs_fetched} />
                 <StatRow label="Structured" value={s?.jobs_structured} />
-                <StatRow label="Saved to DB" value={s?.jobs_saved} />
                 <StatRow label="Failed" value={s?.jobs_failed} />
-                <StatRow label="Duration" value={s?.duration_seconds != null ? `${s.duration_seconds}s` : undefined} />
+                <StatRow
+                  label="Duration"
+                  value={s?.duration_seconds != null ? `${s.duration_seconds}s` : undefined}
+                />
               </CardContent>
             </Card>
 

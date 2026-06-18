@@ -119,8 +119,18 @@ def run_processing_pipeline(
     boards_registry = load_company_boards(_config_root)
     db_dir = workspace_root / "db"
 
-    stats = {"jobs_discovered": len(candidates), "jobs_fetched": 0,
-             "jobs_structured": 0, "jobs_saved": 0, "jobs_failed": 0, "jobs_skipped": 0}
+    stats = {
+        "jobs_discovered": len(candidates),
+        "jobs_fetched": 0,
+        "jobs_structured": 0,
+        # jobs_saved is kept for backward-compat (total of inserted + updated)
+        "jobs_saved": 0,
+        "new_jobs_inserted": 0,
+        "existing_jobs_updated": 0,
+        "possible_duplicates": 0,
+        "jobs_failed": 0,
+        "jobs_skipped": 0,
+    }
     structured_records: list[dict[str, Any]] = []
     workstream_counts: dict[str, int] = {}
 
@@ -227,8 +237,15 @@ def run_processing_pipeline(
         # Step 6: Save
         if not dry_run:
             save_result = upsert_job(record, db_dir)
+            action = save_result["action"]
             stats["jobs_saved"] += 1
-            log_step(run_dir, "save_done", job_id, save_result["action"])
+            if action == "inserted":
+                stats["new_jobs_inserted"] += 1
+            else:
+                stats["existing_jobs_updated"] += 1
+            if record.get("possible_duplicate"):
+                stats["possible_duplicates"] += 1
+            log_step(run_dir, "save_done", job_id, action)
         else:
             log_step(run_dir, "save_done", job_id, "dry_run_skipped")
 
