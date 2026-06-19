@@ -28,8 +28,23 @@
       "properties": {
         "hard_constraints": {
           "type": "array",
-          "items": { "type": "string" },
-          "description": "Non-negotiable constraints derived from explicit user instruction. Agent must not override. Examples: 'max_years_experience: 3', 'location: NYC only', 'exclude: model_validation'."
+          "description": "Non-negotiable constraints that the agent must not override. Each entry carries a provenance tag so downstream components can distinguish constraints the user stated explicitly from those inferred from the profile or system strategy. source values: 'user_explicit' — stated in the user instruction or search_params; 'profile_derived' — inferred from the candidate profile (only valid when search_source allows profile); 'system_strategy' — derived from strategy_context (never promoted to a hard user constraint). Examples: {\"value\": \"max_years_experience: 3\", \"source\": \"user_explicit\"}, {\"value\": \"remote_only\", \"source\": \"user_explicit\"}.",
+          "items": {
+            "type": "object",
+            "required": ["value", "source"],
+            "additionalProperties": false,
+            "properties": {
+              "value": {
+                "type": "string",
+                "description": "The constraint as a short human-readable string, e.g. 'max_years_experience: 3', 'location: NYC only', 'exclude: model_validation'."
+              },
+              "source": {
+                "type": "string",
+                "enum": ["user_explicit", "profile_derived", "system_strategy"],
+                "description": "Where this constraint originated. user_explicit: user said it directly. profile_derived: inferred from candidate profile. system_strategy: from strategy_context (must NOT be used as a hard user constraint)."
+              }
+            }
+          }
         },
         "soft_preferences": {
           "type": "array",

@@ -23,6 +23,7 @@ from career_intelligence.services.intent_translator import (
     IntentTranslatorError,
     _extract_json,
     build_input_envelope,
+    # Note: _hc / _cv are test-only helpers defined below
     copy_global_constraints_to_lanes,
     normalize_budget_share,
     persist_artifacts,
@@ -33,8 +34,30 @@ from career_intelligence.services.intent_translator import (
 
 
 # ---------------------------------------------------------------------------
+# Hard-constraint helpers — provenance-tagged format introduced in Gap 1
+# ---------------------------------------------------------------------------
+
+
+def _hc(value: str, source: str = "user_explicit") -> dict[str, Any]:
+    """Build a provenance-tagged hard_constraint object."""
+    return {"value": value, "source": source}
+
+
+def _cv(hard_constraints: list[Any]) -> list[str]:
+    """Extract plain string values from hard_constraints (handles both formats)."""
+    result = []
+    for c in hard_constraints:
+        if isinstance(c, str):
+            result.append(c)
+        elif isinstance(c, dict) and "value" in c:
+            result.append(str(c["value"]))
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Shared test data helpers
 # ---------------------------------------------------------------------------
+
 
 def _base_profile(**kwargs) -> dict[str, Any]:
     """Minimal valid candidate profile for testing."""
@@ -68,9 +91,14 @@ def _base_profile(**kwargs) -> dict[str, Any]:
 def _base_intent(
     intent_kind: str = "directed_discovery",
     num_lanes: int = 1,
-    hard_constraints: list[str] | None = None,
+    hard_constraints: list[Any] | None = None,
 ) -> dict[str, Any]:
-    """Minimal valid DiscoveryIntent for testing."""
+    """Minimal valid DiscoveryIntent for testing.
+
+    hard_constraints may be passed as plain strings (legacy) or as provenance
+    objects {value, source}. Strings are auto-promoted to user_explicit objects
+    so the intent always validates against the current schema.
+    """
     lanes = []
     for i in range(num_lanes):
         lane_id = f"lane_{i+1}"
@@ -83,11 +111,18 @@ def _base_intent(
             "query_seeds": [f"market risk analyst {lane_id}"],
             "budget_share": round(1.0 / num_lanes, 4),
         })
+    # Auto-promote plain strings to provenance objects
+    normalized_hc: list[Any] = []
+    for item in (hard_constraints or []):
+        if isinstance(item, str):
+            normalized_hc.append(_hc(item))
+        else:
+            normalized_hc.append(item)
     return {
         "intent_kind": intent_kind,
         "raw_user_instruction": "test instruction",
         "global_constraints": {
-            "hard_constraints": hard_constraints or [],
+            "hard_constraints": normalized_hc,
             "soft_preferences": [],
             "negative_preferences": [],
         },
@@ -273,7 +308,7 @@ class TestGoldenCase1_DirectedWithConstraints:
     def test_directed_discovery_with_experience_constraint(self, tmp_path: Path) -> None:
         llm_response = _base_intent(intent_kind="directed_discovery", num_lanes=1)
         llm_response["raw_user_instruction"] = "多找中型银行、保险公司、asset management，经验3年以下"
-        llm_response["global_constraints"]["hard_constraints"] = ["max_years_experience: 3"]
+        llm_response["global_constraints"]["hard_constraints"] = [_hc("max_years_experience: 3")]
         llm_response["global_constraints"]["soft_preferences"] = ["prefer mid-size firms"]
         llm_response["search_lanes"][0].update({
             "lane_id": "mid_size_market_risk",
@@ -288,7 +323,7 @@ class TestGoldenCase1_DirectedWithConstraints:
         )
 
         assert result["intent_kind"] == "directed_discovery"
-        hard = result["global_constraints"]["hard_constraints"]
+        hard = _cv(result["global_constraints"]["hard_constraints"])
         assert any("3" in c for c in hard), "Hard constraint for max_years_experience not found"
         # translator artifacts should have been persisted
         assert (tmp_path / "discovery_intent.json").exists()
@@ -400,8 +435,8 @@ class TestGoldenCase5_LocationSeniorityHardConstraints:
         llm_response = _base_intent(intent_kind="directed_discovery", num_lanes=2)
         llm_response["raw_user_instruction"] = "只要 NYC analyst/associate"
         llm_response["global_constraints"]["hard_constraints"] = [
-            "location: New York City only",
-            "seniority: analyst or associate only",
+            _hc("location: New York City only"),
+            _hc("seniority: analyst or associate only"),
         ]
         llm_response["global_constraints"]["seniority_constraints"] = {
             "target_levels": ["analyst", "associate"],
@@ -418,10 +453,10 @@ class TestGoldenCase5_LocationSeniorityHardConstraints:
             tmp_path=tmp_path,
         )
 
-        hard = result["global_constraints"]["hard_constraints"]
+        hard = _cv(result["global_constraints"]["hard_constraints"])
         assert any("New York" in c or "NYC" in c for c in hard)
         assert any("analyst" in c.lower() or "associate" in c.lower() for c in hard)
-        # Hard constraints must be propagated to all lanes
+        # Hard constraints must be propagated to all lanes (inherited is flat strings)
         for lane in result["search_lanes"]:
             inherited = lane.get("inherited_hard_constraints", [])
             assert any("New York" in c or "NYC" in c for c in inherited), (
@@ -469,7 +504,7 @@ class TestGoldenCase7_RemoteOnly:
     def test_remote_policy_as_hard_constraint(self, tmp_path: Path) -> None:
         llm_response = _base_intent(intent_kind="directed_discovery", num_lanes=1)
         llm_response["raw_user_instruction"] = "remote only"
-        llm_response["global_constraints"]["hard_constraints"] = ["remote_policy: remote_only"]
+        llm_response["global_constraints"]["hard_constraints"] = [_hc("remote_policy: remote_only")]
         llm_response["global_constraints"]["location_constraints"] = {
             "preferred_locations": [],
             "remote_policy": "remote_only",
@@ -483,7 +518,7 @@ class TestGoldenCase7_RemoteOnly:
 
         loc = result["global_constraints"].get("location_constraints", {})
         assert loc.get("remote_policy") == "remote_only"
-        hard = result["global_constraints"]["hard_constraints"]
+        hard = _cv(result["global_constraints"]["hard_constraints"])
         assert any("remote" in c.lower() for c in hard)
 
 
@@ -560,8 +595,8 @@ class TestGoldenCase10_InsuranceInvestmentRisk:
         llm_response = _base_intent(intent_kind="directed_discovery", num_lanes=1)
         llm_response["raw_user_instruction"] = "找 insurance investment risk，3年以下"
         llm_response["global_constraints"]["hard_constraints"] = [
-            "max_years_experience: 3",
-            "company_type: insurance_carrier or insurance_investment",
+            _hc("max_years_experience: 3"),
+            _hc("company_type: insurance_carrier or insurance_investment"),
         ]
         llm_response["search_lanes"][0].update({
             "lane_id": "insurance_investment_risk",
@@ -581,7 +616,7 @@ class TestGoldenCase10_InsuranceInvestmentRisk:
             tmp_path=tmp_path,
         )
 
-        hard = result["global_constraints"]["hard_constraints"]
+        hard = _cv(result["global_constraints"]["hard_constraints"])
         assert any("3" in c for c in hard), "max_years constraint missing"
         assert any("insurance" in c.lower() for c in hard), "insurance constraint missing"
         lane = result["search_lanes"][0]
@@ -868,7 +903,7 @@ class TestSearchSourceBehavior:
         """instruction_only: user says 'remote only' → remote_policy = remote_only in result."""
         llm_response = _base_intent(intent_kind="directed_discovery", num_lanes=1)
         llm_response["raw_user_instruction"] = "remote only"
-        llm_response["global_constraints"]["hard_constraints"] = ["remote_policy: remote_only"]
+        llm_response["global_constraints"]["hard_constraints"] = [_hc("remote_policy: remote_only")]
         llm_response["global_constraints"]["location_constraints"] = {
             "preferred_locations": [],
             "remote_policy": "remote_only",
@@ -883,7 +918,7 @@ class TestSearchSourceBehavior:
 
         loc = result["global_constraints"].get("location_constraints", {})
         assert loc.get("remote_policy") == "remote_only"
-        hard = result["global_constraints"]["hard_constraints"]
+        hard = _cv(result["global_constraints"]["hard_constraints"])
         assert any("remote" in c.lower() for c in hard)
 
     def test_profile_only_produces_exploration_intent(self, tmp_path: Path) -> None:
@@ -915,7 +950,7 @@ class TestSearchSourceBehavior:
         """instruction_plus_profile: user says 'remote only'; profile has NYC → remote wins."""
         llm_response = _base_intent(intent_kind="directed_discovery", num_lanes=1)
         llm_response["raw_user_instruction"] = "remote only"
-        llm_response["global_constraints"]["hard_constraints"] = ["remote_policy: remote_only"]
+        llm_response["global_constraints"]["hard_constraints"] = [_hc("remote_policy: remote_only")]
         llm_response["global_constraints"]["location_constraints"] = {
             "preferred_locations": [],
             "remote_policy": "remote_only",

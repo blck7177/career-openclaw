@@ -227,8 +227,16 @@ class FinalSearchResult:
     # Per-attempt breakdown
     attempt_summaries: list[dict[str, Any]] = field(default_factory=list)
 
+    # Planned search lanes extracted from the DiscoveryIntent (lane_id, hypothesis, budget_share).
+    # Populated from discovery_intent.search_lanes after all attempts complete.
+    # Does not contain per-lane job counts (those require agent-side tracking).
+    lane_summaries: list[dict[str, Any]] = field(default_factory=list)
+
     # The session_id from the last attempt (used as run identifier in DB)
     last_session_id: str = ""
+
+    # Deterministic plain-text summary for display (no LLM, aggregate data only)
+    search_summary: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -245,6 +253,8 @@ class FinalSearchResult:
             "queries_run": self.total_queries_run,
             "duration_seconds": round(self.total_duration_seconds, 1),
             "attempt_summaries": self.attempt_summaries,
+            "lane_summaries": self.lane_summaries,
+            "search_summary": self.search_summary,
             # Backward-compat: keep jobs_saved = new_jobs_inserted + existing_jobs_updated
             "jobs_saved": self.total_new_jobs_inserted + self.total_existing_jobs_updated,
             "session_id": self.last_session_id,
@@ -515,6 +525,41 @@ def _deterministic_pivot_hint(
 
 
 # ---------------------------------------------------------------------------
+# Deterministic search summary (no LLM, aggregate data only)
+# ---------------------------------------------------------------------------
+
+
+def _build_search_summary(result: "FinalSearchResult") -> str:
+    """
+    Build a 2–4 line plain-text summary of a completed search run.
+
+    Based only on aggregate counters and attempt_summaries — no LLM call,
+    no lane data. Intended as a quick human-readable status line for the UI.
+    """
+    parts: list[str] = []
+
+    new = result.total_new_jobs_inserted
+    target = result.target_new_jobs
+    if new >= target:
+        parts.append(f"Found {new} new roles (target: {target}). Goal met.")
+    elif new > 0:
+        parts.append(f"Found {new} new roles (target: {target}). Partially met.")
+    else:
+        parts.append(f"No new roles found (target: {target}).")
+
+    if result.attempts_run > 1:
+        parts.append(f"Completed in {result.attempts_run} attempts.")
+
+    if result.total_possible_duplicates > 0:
+        parts.append(f"{result.total_possible_duplicates} already in catalog.")
+
+    if result.total_jobs_failed > 0:
+        parts.append(f"{result.total_jobs_failed} fetch failure(s).")
+
+    return " ".join(parts)
+
+
+# ---------------------------------------------------------------------------
 # Objective Controller
 # ---------------------------------------------------------------------------
 
@@ -625,6 +670,7 @@ class ObjectiveController:
                     all_attempts, cumulative_new_jobs, "met",
                     f"Objective met: {cumulative_new_jobs}/{objective.target_new_jobs} new jobs inserted.",
                     last_session_id,
+                    discovery_intent=discovery_intent,
                 )
 
             if evaluation.status == _STATUS_GIVE_UP:
@@ -663,7 +709,10 @@ class ObjectiveController:
                 f"Objective not met: 0 new jobs inserted after {len(all_attempts)} attempt(s)."
             )
 
-        return self._build_final_result(all_attempts, cumulative_new_jobs, status, reason, last_session_id)
+        return self._build_final_result(
+            all_attempts, cumulative_new_jobs, status, reason, last_session_id,
+            discovery_intent=discovery_intent,
+        )
 
     def _build_final_result(
         self,
@@ -672,6 +721,8 @@ class ObjectiveController:
         status: str,
         reason: str,
         last_session_id: str,
+        *,
+        discovery_intent: dict[str, Any] | None = None,
     ) -> FinalSearchResult:
         result = FinalSearchResult(
             objective_id=self._objective.objective_id,
@@ -700,4 +751,17 @@ class ObjectiveController:
                 "queries_run": a.queries_run,
                 "duration_seconds": round(a.duration_seconds, 1),
             })
+        # Populate lane_summaries from DiscoveryIntent (planned lanes, no per-lane job counts yet)
+        for lane in (discovery_intent or {}).get("search_lanes", []):
+            lane_id = lane.get("lane_id")
+            hypothesis = lane.get("hypothesis")
+            budget_share = lane.get("budget_share")
+            if lane_id and hypothesis:
+                result.lane_summaries.append({
+                    "lane_id": lane_id,
+                    "hypothesis": hypothesis,
+                    "budget_share": budget_share,
+                })
+
+        result.search_summary = _build_search_summary(result)
         return result

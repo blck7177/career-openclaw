@@ -206,6 +206,7 @@ def _run(
     profile: dict[str, Any] | None = None,
     strategy: dict[str, Any] | None = None,
     mode: str = "auto",
+    search_source: str = "instruction_plus_profile",
     tmp_path: Path,
 ) -> dict[str, Any]:
     return translate(
@@ -216,8 +217,24 @@ def _run(
         workspace_root=WORKSPACE_ROOT,
         repo_root=_REPO_ROOT,
         requested_mode=mode,
+        search_source=search_source,
         session_root=tmp_path,
     )
+
+
+def _constraint_values(hard_constraints: list[Any]) -> list[str]:
+    """Extract plain string values from hard_constraints.
+
+    Handles both the legacy string-list format and the provenance-tagged
+    {value, source} object format introduced in Gap 1.
+    """
+    result = []
+    for c in hard_constraints:
+        if isinstance(c, str):
+            result.append(c)
+        elif isinstance(c, dict) and "value" in c:
+            result.append(str(c["value"]))
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -563,3 +580,114 @@ def test_case10_strategy_avoid_workday(tmp_path: Path) -> None:
     _record("case10_strategy_avoid_workday", instruction, intent, assertions)
     for desc, passed in assertions.items():
         assert passed, f"[Case 10] FAILED: {desc}"
+
+
+# ---------------------------------------------------------------------------
+# Case 11: instruction_only + "remote only" — no profile location leak
+# ---------------------------------------------------------------------------
+
+def test_case11_instruction_only_remote_no_profile_leak(tmp_path: Path) -> None:
+    """
+    search_source=instruction_only, instruction="remote only".
+
+    The real profile has constraints="New York Only" and target_roles=["Quantitative analyst"].
+    Expected:
+      - remote_policy == remote_only in location_constraints
+      - no NYC/New York/Jersey City in hard_constraints values
+      - no profile-derived seniority/title constraints imposed on the translator
+    """
+    instruction = "remote only"
+    intent = _run(instruction, search_source="instruction_only", tmp_path=tmp_path)
+
+    hard = _constraint_values(intent["global_constraints"]["hard_constraints"])
+    loc = intent["global_constraints"].get("location_constraints") or {}
+    all_seeds = [s for l in intent["search_lanes"] for s in l.get("query_seeds", [])]
+
+    _nyc_terms = {"new york", "nyc", "jersey city", "manhattan"}
+
+    assertions = {
+        "remote_policy == remote_only in location_constraints": (
+            loc.get("remote_policy") == "remote_only"
+        ),
+        "no NYC/New York location in hard_constraints values": not any(
+            any(term in c.lower() for term in _nyc_terms) for c in hard
+        ),
+        "at least one lane": len(intent["search_lanes"]) >= 1,
+        "query seeds are non-empty": len(all_seeds) > 0,
+    }
+    _record("case11_instruction_only_remote_no_profile_leak", instruction, intent, assertions)
+    for desc, passed in assertions.items():
+        assert passed, f"[Case 11] FAILED: {desc}"
+
+
+# ---------------------------------------------------------------------------
+# Case 12: instruction_plus_profile + "remote only" — instruction wins over profile
+# ---------------------------------------------------------------------------
+
+def test_case12_instruction_plus_profile_remote_wins(tmp_path: Path) -> None:
+    """
+    search_source=instruction_plus_profile, instruction="remote only".
+
+    The real profile has constraints="New York Only".
+    Hard rule: user's remote_only constraint must override profile's NYC location.
+    Profile may still enrich lane hypotheses/seeds, but must NOT inject NYC as a
+    hard constraint or convert remote_only back to on-site/hybrid.
+    """
+    instruction = "remote only"
+    intent = _run(instruction, search_source="instruction_plus_profile", tmp_path=tmp_path)
+
+    hard = _constraint_values(intent["global_constraints"]["hard_constraints"])
+    loc = intent["global_constraints"].get("location_constraints") or {}
+
+    _nyc_terms = {"new york", "nyc", "jersey city", "manhattan"}
+
+    assertions = {
+        "remote_policy == remote_only in location_constraints": (
+            loc.get("remote_policy") == "remote_only"
+        ),
+        "profile location (NYC) not promoted to hard constraint": not any(
+            any(term in c.lower() for term in _nyc_terms) for c in hard
+        ),
+        "at least one lane": len(intent["search_lanes"]) >= 1,
+    }
+    _record("case12_instruction_plus_profile_remote_wins", instruction, intent, assertions)
+    for desc, passed in assertions.items():
+        assert passed, f"[Case 12] FAILED: {desc}"
+
+
+# ---------------------------------------------------------------------------
+# Case 13: profile_only + empty instruction — exploration, no generic seeds
+# ---------------------------------------------------------------------------
+
+def test_case13_profile_only_exploration_no_generic_seeds(tmp_path: Path) -> None:
+    """
+    search_source=profile_only, instruction="" (empty).
+
+    Expected:
+      - intent_kind is profile_based_exploration (or directed if profile is strong)
+      - every lane has at least one entry in evidence_from_profile
+      - no query_seed is a purely generic term (e.g. 'jobs', 'careers')
+    """
+    instruction = ""
+    intent = _run(instruction, search_source="profile_only", tmp_path=tmp_path)
+
+    lanes = intent["search_lanes"]
+    all_seeds = [s for l in lanes for s in l.get("query_seeds", [])]
+    _generic = {"jobs", "careers", "employment", "work", "positions", "openings"}
+
+    assertions = {
+        "intent_kind is profile_based_exploration or directed_discovery": (
+            intent["intent_kind"] in ("profile_based_exploration", "directed_discovery")
+        ),
+        "at least 2 lanes": len(lanes) >= 2,
+        "every lane has profile_evidence": all(
+            len(l.get("evidence_from_profile") or []) > 0 for l in lanes
+        ),
+        "no generic-only seeds (jobs/careers/etc)": not any(
+            s.strip().lower() in _generic for s in all_seeds
+        ),
+        "total seeds > 3": len(all_seeds) > 3,
+    }
+    _record("case13_profile_only_exploration_no_generic_seeds", instruction, intent, assertions)
+    for desc, passed in assertions.items():
+        assert passed, f"[Case 13] FAILED: {desc}"

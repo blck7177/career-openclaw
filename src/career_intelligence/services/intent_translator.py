@@ -141,6 +141,15 @@ and company/industry exclusions from allowed sources.
 - Copy global hard constraints into lane-level inherited_hard_constraints.
 - Distinguish hard_constraints, soft_preferences, and negative_preferences.
 - If a constraint is ambiguous, record it in assumptions.
+- Every item in hard_constraints MUST be a JSON object with two fields:
+  {"value": "<constraint text>", "source": "<provenance>"}
+  where source is exactly one of: "user_explicit", "profile_derived", "system_strategy".
+  user_explicit: the user stated it directly in the instruction or search_params.
+  profile_derived: inferred from the candidate profile \
+(only valid when search_source is profile_only or instruction_plus_profile).
+  system_strategy: from strategy_context — MUST NOT be used as a hard constraint; \
+use source_strategy instead.
+  Do NOT emit plain strings in hard_constraints. Each entry must have value and source.
 
 --- PRIVACY ---
 - Do not include personal names, private employer-sensitive details, compensation, \
@@ -426,14 +435,33 @@ def normalize_budget_share(intent: dict[str, Any]) -> dict[str, Any]:
 def copy_global_constraints_to_lanes(intent: dict[str, Any]) -> dict[str, Any]:
     """
     Propagate global_constraints.hard_constraints into each lane's
-    inherited_hard_constraints. Mutates intent in place and returns it.
+    inherited_hard_constraints (flat string list).
+
+    Global hard_constraints are now provenance-tagged objects {value, source}.
+    Lane-level inherited_hard_constraints remain plain strings for backward
+    compatibility with the search agent that reads them as text directives.
+    Mutates intent in place and returns it.
     """
     hard = (intent.get("global_constraints") or {}).get("hard_constraints") or []
     if not hard:
         return intent
+
+    # Extract plain string values from provenance objects (or legacy strings).
+    hard_values: list[str] = []
+    for item in hard:
+        if isinstance(item, dict):
+            v = item.get("value")
+            if v:
+                hard_values.append(str(v))
+        elif isinstance(item, str):
+            hard_values.append(item)
+
+    if not hard_values:
+        return intent
+
     for lane in intent.get("search_lanes", []):
         existing = lane.get("inherited_hard_constraints") or []
-        merged = list({*existing, *hard})
+        merged = list(dict.fromkeys([*existing, *hard_values]))
         lane["inherited_hard_constraints"] = merged
     return intent
 

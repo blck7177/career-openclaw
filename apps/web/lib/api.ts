@@ -475,6 +475,14 @@ export interface DiscoveryRunResult {
     queries_run: number;
     duration_seconds: number;
   }>;
+  /** Deterministic plain-text summary (no LLM, aggregate data only). */
+  search_summary?: string;
+  /** Planned search lanes from the DiscoveryIntent (no per-lane job counts). */
+  lane_summaries?: Array<{
+    lane_id: string;
+    hypothesis: string;
+    budget_share: number | null;
+  }>;
   // Backward-compat
   jobs_saved?: number;
   session_id?: string;

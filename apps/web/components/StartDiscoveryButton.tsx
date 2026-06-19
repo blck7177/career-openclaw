@@ -572,6 +572,25 @@ export default function StartDiscoveryButton({ profiles }: StartDiscoveryButtonP
               <p className="text-muted-foreground italic">{r.objective_reason}</p>
             )}
 
+            {r.search_summary && (
+              <p className="text-muted-foreground border-t pt-1 mt-1">
+                {r.search_summary}
+              </p>
+            )}
+
+            {r.lane_summaries && r.lane_summaries.length > 0 && (
+              <details className="pt-1">
+                <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                  Search lanes ({r.lane_summaries.length})
+                </summary>
+                <ul className="mt-1 space-y-0.5 pl-3 list-disc text-muted-foreground">
+                  {r.lane_summaries.map((l) => (
+                    <li key={l.lane_id}>{l.hypothesis}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
+
             {r.queries_run != null && (
               <p className="text-muted-foreground">
                 Queries: {r.queries_run} | Candidates: {r.candidates_captured ?? "—"} |{" "}

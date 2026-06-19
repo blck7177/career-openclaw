@@ -309,6 +309,15 @@ def enqueue_discovery_run(
         body.additional_instruction or body.user_instruction,
     )
 
+    # instruction_only requires at least one filter or free-text instruction.
+    # An empty compiled_instruction would leave the translator with no signal,
+    # producing undefined behaviour under the no-silent-defaults rule.
+    if body.search_source == "instruction_only" and not compiled_instruction.strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="instruction_only requires at least one filter or instruction",
+        )
+
     # Resolve budget
     max_queries, max_pages = _resolve_budget(body)
 

@@ -72,7 +72,7 @@ def _minimal_discovery_intent(intent_kind: str = "directed_discovery") -> dict[s
         "raw_user_instruction": "find market risk roles at mid-size banks",
         "profile_id": "prof_test001",
         "global_constraints": {
-            "hard_constraints": ["max_years_experience: 3"],
+            "hard_constraints": [{"value": "max_years_experience: 3", "source": "user_explicit"}],
             "soft_preferences": ["prefer mid-size firms"],
             "negative_preferences": [],
         },
@@ -272,6 +272,69 @@ class TestDiscoveryRunsAPI:
         r2 = client.post("/api/discovery-runs", json=payload, headers=_DEV_HEADERS)
         assert r2.status_code == 409, r2.text
         assert "already" in r2.json()["detail"].lower()
+
+    def test_instruction_only_empty_returns_422(
+        self, client: TestClient, profile_id: str, data_root: Path
+    ) -> None:
+        """instruction_only with no filters and no instruction must be rejected with 422.
+
+        No task should be created — the guard fires before task_service.create_task().
+        """
+        from career_intelligence.services.task_service import list_tasks
+        from career_intelligence.app_state.context import RequestContext as RC
+
+        ctx = RC(workspace_id="dev_default", user_id="dev_user")
+
+        with patch("career_intelligence.services.task_service.get_data_root", return_value=data_root):
+            before = len(list_tasks(ctx))
+
+        r = client.post(
+            "/api/discovery-runs",
+            json={
+                "profile_id": profile_id,
+                "search_source": "instruction_only",
+                # All search_params fields omitted → defaults to empty
+                # additional_instruction and user_instruction omitted → empty
+            },
+            headers=_DEV_HEADERS,
+        )
+        assert r.status_code == 422, r.text
+        detail = r.json().get("detail", "")
+        assert "instruction_only" in detail.lower() or "instruction" in detail.lower()
+
+        # Verify no task was created by the failed request
+        with patch("career_intelligence.services.task_service.get_data_root", return_value=data_root):
+            after = len(list_tasks(ctx))
+        assert after == before
+
+
+# ---------------------------------------------------------------------------
+# Unit tests for _compile_instruction helper
+# ---------------------------------------------------------------------------
+
+
+def test_compile_instruction_empty() -> None:
+    """_compile_instruction with all-default SearchParams and empty text returns ''."""
+    from apps.api.routes.discovery_runs import _compile_instruction, SearchParams
+
+    assert _compile_instruction(SearchParams(), "") == ""
+
+
+def test_compile_instruction_flexible_remote_not_included() -> None:
+    """remote_policy='flexible' (the default) is not written into the instruction."""
+    from apps.api.routes.discovery_runs import _compile_instruction, SearchParams
+
+    result = _compile_instruction(SearchParams(remote_policy="flexible"), "")
+    assert "flexible" not in result
+    assert result == ""
+
+
+def test_compile_instruction_non_flexible_remote_included() -> None:
+    """Non-flexible remote_policy IS written into the instruction."""
+    from apps.api.routes.discovery_runs import _compile_instruction, SearchParams
+
+    result = _compile_instruction(SearchParams(remote_policy="remote"), "")
+    assert "remote" in result.lower()
 
 
 # ---------------------------------------------------------------------------
