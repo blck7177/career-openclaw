@@ -1,44 +1,66 @@
-# TOOLS.md - Local Notes
+# Tools Available to career-search-agent
 
-Skills define _how_ tools work. This file is for _your_ specifics — the stuff that's unique to your setup.
+## Built-in Tools
 
-## What Goes Here
+- `web_search(query)` — search the web
+- `web_fetch(url)` — fetch a URL and return text content
 
-Things like:
+## Approved Wrappers (via exec tool)
 
-- Camera names and locations
-- SSH hosts and aliases
-- Preferred voices for TTS
-- Speaker/room names
-- Device nicknames
-- Anything environment-specific
+All wrappers are invoked via the exec tool using the **named form** (`name: <wrapper_name>`).
+All wrappers accept `--task-spec <path> --output <path>`.
 
-## Examples
+### career_search_status
 
-```markdown
-### Cameras
+Query current search session budget and coverage.
 
-- living-room → Main area, 180° wide angle
-- front-door → Entrance, motion-triggered
-
-### SSH
-
-- home-server → 192.168.1.100, user: admin
-
-### TTS
-
-- Preferred voice: "Nova" (warm, slightly British)
-- Default speaker: Kitchen HomePod
+```
+tool: exec
+name: career_search_status
+args:
+  --task-spec <input.json 路径（来自 invocation message）>
+  --output /tmp/status_result.json
 ```
 
-## Why Separate?
+### career_log_candidates
 
-Skills are shared. Your setup is yours. Keeping them apart means you can update skills without losing your notes, and share skills without leaking your infrastructure.
+Write one or more triaged candidates to the candidate pool.
 
----
+```
+tool: exec
+name: career_log_candidates
+args:
+  --task-spec /tmp/log_candidates_spec.json
+  --output /tmp/log_candidates_result.json
+```
 
-Add whatever helps you do your job. This is your cheat sheet.
+### career_write_manifest
 
-## Related
+Write the final output manifest. Call once when done.
 
-- [Agent workspace](/concepts/agent-workspace)
+```
+tool: exec
+name: career_write_manifest
+args:
+  --task-spec /tmp/manifest_data.json
+  --output <output_manifest_path（来自 invocation message）>
+```
+
+### career_fetch_source
+
+Fetch and normalize a job posting from a specific ATS URL.
+
+```
+tool: exec
+name: career_fetch_source
+args:
+  --task-spec /tmp/fetch_source_spec.json
+  --output /tmp/fetch_result.json
+```
+
+## What NOT to Use
+
+- Do not call wrappers by path (`~/career-openclaw/wrappers/...`) — use the named exec form above
+- Do not use `python`, `python3`, `bash`, `sh`, or any shell command directly
+- Do not attempt database connections
+- Do not use `curl`, `wget`, or any HTTP tool outside the approved wrappers
